@@ -1,0 +1,78 @@
+{
+  "version": "1.0.0",
+  "defaultModel": "claude-3-5-sonnet-20241022",
+  "models": {
+    "main": "claude-3-5-sonnet-20241022",
+    "research": "claude-3-5-haiku-20241022",
+    "fallback": "gpt-4o",
+    "creative": "gemini-1.5-pro"
+  },
+  "projectName": "Podplay Sanctuary",
+  "storageLocation": "./.taskmaster",
+  "apiKeys": {
+    "anthropic": "${ANTHROPIC_API_KEY}",
+    "openai": "${OPENAI_API_KEY}",
+    "google": "${GOOGLE_API_KEY}"
+  },
+  "user_context": {
+    "attempt_number": 44,
+    "previous_attempts": 43,
+    "significance": "This is THE attempt that works perfectly",
+    "primary_communication": "LLM-based interactions",
+    "accessibility_needs": [
+      "sensory-friendly design",
+      "neurodivergent accommodations",
+      "visual confirmation systems", 
+      "predictable interactions",
+      "safe sanctuary environment"
+    ],
+    "success_validation": "Master test suite with green checkmarks",
+    "sanctuary_goal": "Never want to leave experience"
+  },
+  "features": {
+    "codeAnalysis": true,
+    "taskManagement": true,
+    "projectPlanning": true,
+    "researchAssistant": true,
+    "autoCompletion": true,
+    "memoryIntegration": true,
+    "scrapybaraIntegration": true,
+    "masterTestSuite": true,
+    "sequentialThinking": true,
+    "magicMCPComponents": true
+  },
+  "sanctuary": {
+    "themes": ["sky", "neon", "stellar"],
+    "mamaBearVariants": 7,
+    "services": ["memory", "scrapybara", "themes", "agents"],
+    "emotional_safety": "Primary priority",
+    "sensory_accommodation": "Built-in throughout",
+    "test_validation": "Comprehensive green checkmark system"
+  },
+  "customPrompts": {
+    "codeReview": "Review this code for the Podplay Sanctuary neurodivergent-friendly development platform, focusing on accessibility, performance, and mama bear agent integration:",
+    "taskCreation": "Create a sanctuary development task with neurodivergent-friendly context and mama bear guidance:",
+    "mamaBearConsult": "Consult the appropriate Mama Bear AI variant for guidance on this sanctuary feature:",
+    "scrapybaraTask": "Plan a cloud VM task using Scrapybara integration for instant development environments:",
+    "sanctuaryValidation": "Validate that this feature meets sanctuary standards for safety, accessibility, and neurodivergent accommodation:",
+    "testSuiteUpdate": "Update the master test suite to include validation for this sanctuary feature:"
+  },
+  "workflow": {
+    "phases": ["foundation", "services", "master-tests", "frontend", "integration", "polish"],
+    "currentPhase": "master-tests",
+    "milestones": {
+      "foundation": "Backend Flask app with SocketIO ✅",
+      "services": "All service classes implemented ✅", 
+      "master-tests": "Comprehensive test suite with visual dashboard",
+      "frontend": "React app with Magic MCP components",
+      "integration": "Full system integration with all green checkmarks",
+      "polish": "Perfect sanctuary experience ready"
+    }
+  },
+  "test_suite": {
+    "priority": "CRITICAL",
+    "visual_feedback": "Green checkmarks for all passing tests",
+    "comprehensive_coverage": "Backend, frontend, integration, accessibility",
+    "validation_before_ui": "Must pass all tests before UI interaction"
+  }
+}

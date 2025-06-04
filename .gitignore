@@ -1,0 +1,219 @@
+# 🐻 Podplay Sanctuary - .gitignore
+# Neurodivergent-friendly AI development platform
+
+# ========================
+# Python & Backend
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+env/
+ENV/
+.venv/
+.env
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ========================
+# Node.js & Frontend
+# ========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.npm
+.eslintcache
+.yarn-integrity
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ========================
+# Environment & Config
+# ========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+config.json
+secrets.json
+podplay-build-*.json
+
+# ========================
+# IDE & Editor Files
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ========================
+# Logs & Monitoring
+# ========================
+*.log
+logs/
+mama_bear.log
+backend/mama_bear.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================
+# AI & ML Models
+# ========================
+*.pkl
+*.pickle
+*.model
+*.weights
+*.ckpt
+models/
+checkpoints/
+
+# ========================
+# Database & Storage
+# ========================
+*.db
+*.sqlite
+*.sqlite3
+data/
+storage/
+uploads/
+downloads/
+cache/
+
+# ========================
+# Memory & Context Files
+# ========================
+mama_bear_memory/
+memories/
+context/
+sessions/
+user_profiles.json
+memories.json
+
+# ========================
+# Build & Distribution
+# ========================
+dist/
+build/
+*.tgz
+*.tar.gz
+.next/
+out/
+
+# ========================
+# Documentation (User Specified)
+# ========================
+docs/
+
+# ========================
+# Shared Components (User Specified)
+# ========================
+shared-components/
+
+# ========================
+# UI Components (User Specified)
+# ========================
+Ui-Componets/
+
+# ========================
+# Development Tools (User Specified)
+# ========================
+.taskmaster/
+
+# ========================
+# Temporary & Service Files
+# ========================
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+service-account-*.json
+*.pid
+*.lock
+
+# ========================
+# Testing & Coverage
+# ========================
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+.nyc_output
+
+# ========================
+# OS Generated Files
+# ========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ========================
+# Scrapybara & Browser Automation
+# ========================
+screenshots/
+browser_data/
+automation_logs/
+
+# ========================
+# Redis & Caching
+# ========================
+dump.rdb
+redis.conf
+
+# ========================
+# Git & Version Control
+# ========================
+.git/
+*.orig
+*.rej
+
+# ========================
+# Keep Important Files
+# ========================
+!.gitkeep
+!README.md
+!requirements.txt
+!package.json
+!tailwind.config.js
+!vite.config.ts
+!tsconfig.json
