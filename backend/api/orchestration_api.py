@@ -124,3 +124,11 @@ def list_agents():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
+
+def integrate_orchestration_with_app(app, socketio):
+    """Integrate orchestration API with Flask app"""
+    
+    # Register blueprint
+    app.register_blueprint(orchestration_bp)
+    
+    logger.info("🐻 Mama Bear Orchestration API integrated successfully")

@@ -215,7 +215,7 @@ class AgentOrchestrator:
     
     def _initialize_agents(self):
         """Initialize all Mama Bear agent types"""
-        from mama_bear_specialized_variants import (
+        from .mama_bear_specialized_variants import (
             ResearchSpecialist, DevOpsSpecialist, ScoutCommander,
             ModelCoordinator, ToolCurator, IntegrationArchitect, LiveAPISpecialist
         )
