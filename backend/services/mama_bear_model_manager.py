@@ -165,21 +165,33 @@ class MamaBearModelManager:
     
     def _get_quota_status(self, model_config: ModelConfig) -> QuotaStatus:
         """Check current quota status for a model"""
-        # Check if model is healthy
-        if not model_config.is_healthy or model_config.consecutive_errors >= 3:
+        try:
+            # Check if model is healthy
+            consecutive_errors = model_config.consecutive_errors or 0
+            if not model_config.is_healthy or consecutive_errors >= 3:
+                return QuotaStatus.ERROR
+            
+            # Safely get request counts with None protection
+            requests_day = model_config.current_requests_day or 0
+            requests_minute = model_config.current_requests_minute or 0
+            daily_limit = model_config.requests_per_day or 1500
+            minute_limit = model_config.requests_per_minute or 60
+            
+            # Check daily quota
+            if requests_day >= daily_limit * 0.95:
+                return QuotaStatus.EXHAUSTED
+            elif requests_day >= daily_limit * 0.8:
+                return QuotaStatus.LIMITED
+            
+            # Check minute quota
+            if requests_minute >= minute_limit * 0.9:
+                return QuotaStatus.LIMITED
+            
+            return QuotaStatus.AVAILABLE
+            
+        except Exception as e:
+            logger.error(f"Error checking quota status: {e}")
             return QuotaStatus.ERROR
-        
-        # Check daily quota
-        if model_config.current_requests_day >= model_config.requests_per_day * 0.95:
-            return QuotaStatus.EXHAUSTED
-        elif model_config.current_requests_day >= model_config.requests_per_day * 0.8:
-            return QuotaStatus.LIMITED
-        
-        # Check minute quota
-        if model_config.current_requests_minute >= model_config.requests_per_minute * 0.9:
-            return QuotaStatus.LIMITED
-        
-        return QuotaStatus.AVAILABLE
     
     def _select_optimal_model(self, message_context: Dict[str, Any]) -> Optional[ModelConfig]:
         """

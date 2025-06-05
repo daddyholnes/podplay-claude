@@ -202,11 +202,14 @@ def get_service_instances():
     if not services_initialized:
         raise RuntimeError("Services not initialized. Call initialize_sanctuary_services() first.")
     
+    # Get services directly from service manager (sync) - Fixed import
+    from services import service_manager
+    
     return {
-        'mama_bear': get_mama_bear_agent(),
-        'memory': get_memory_manager(),
-        'scrapybara': get_scrapybara_manager(),
-        'theme': get_theme_manager()
+        'mama_bear': service_manager.get_service('mama_bear'),
+        'memory': service_manager.get_service('memory'),
+        'scrapybara': service_manager.get_service('scrapybara'),
+        'theme': service_manager.get_service('themes')
     }
 
 # ==============================================================================
@@ -218,10 +221,40 @@ def get_service_instances():
 def mama_bear_status():
     """Get current Mama Bear system status"""
     try:
+        # Get the orchestrator instead of the mama_bear agent
+        if hasattr(app, 'config') and 'MAMA_BEAR_ORCHESTRATOR' in app.config:
+            orchestrator = app.config['MAMA_BEAR_ORCHESTRATOR']
+            if orchestrator:
+                # Get status from orchestrator (async method, so we need to handle it)
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                status = loop.run_until_complete(orchestrator.get_system_status())
+                loop.close()
+                
+                return jsonify({
+                    'success': True,
+                    'status': status
+                })
+        
+        # Fallback: Get basic service status
         services = get_service_instances()
         mama_bear = services['mama_bear']
         
-        status = mama_bear.get_system_status()
+        # Create a basic status response
+        status = {
+            'mama_bear_agent': {
+                'type': type(mama_bear).__name__,
+                'available': True,
+                'timestamp': datetime.now().isoformat()
+            },
+            'services': {
+                'memory': services.get('memory') is not None,
+                'scrapybara': services.get('scrapybara') is not None,
+                'themes': services.get('theme') is not None
+            }
+        }
+        
         return jsonify({
             'success': True,
             'status': status

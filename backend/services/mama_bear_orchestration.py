@@ -182,26 +182,66 @@ class ContextAwareness:
     
     async def _get_resource_limits(self, agent_id: str) -> Dict[str, Any]:
         """Get resource limits for this agent"""
-        # Check current quota status from model manager
-        model_status = self.model_manager.get_model_status()
-        
-        # Calculate remaining quota from all available models
-        api_quota_remaining = 0
-        for model_id, model_info in model_status.items():
-            # Estimate remaining quota based on daily limits
-            # Note: model_info structure has 'requests_today' not 'quota_used'
-            if 'requests_today' in model_info:
-                # Assume a reasonable daily limit if not available
-                daily_limit = 1500  # Default daily limit
-                used_today = model_info.get('requests_today', 0)
-                api_quota_remaining += max(0, daily_limit - used_today)
-        
-        return {
-            'api_quota_remaining': api_quota_remaining,
-            'scrapybara_instances': 5,  # Max concurrent instances
-            'memory_limit_mb': 1024,
-            'execution_timeout': 3600  # 1 hour max execution
-        }
+        try:
+            # Check current quota status from model manager
+            model_status = self.model_manager.get_model_status()
+            
+            # Calculate remaining quota from all available models
+            healthy_models = 0
+            total_models = 0
+            api_quota_remaining = 0
+            
+            if model_status and isinstance(model_status, dict):
+                for model_id, model_info in model_status.items():
+                    if model_info and isinstance(model_info, dict):
+                        total_models += 1
+                        
+                        # Check if model is healthy
+                        is_healthy = model_info.get('is_healthy', False)
+                        if is_healthy:
+                            healthy_models += 1
+                        
+                        # Calculate remaining quota safely
+                        requests_today = model_info.get('requests_today', 0)
+                        if requests_today is None:
+                            requests_today = 0
+                        
+                        # Assume a reasonable daily limit if not available
+                        daily_limit = 1500  # Default daily limit
+                        remaining = max(0, daily_limit - int(requests_today))
+                        api_quota_remaining += remaining
+            
+            # Ensure we have valid numbers for comparisons
+            healthy_models = max(0, healthy_models) if healthy_models is not None else 0
+            total_models = max(1, total_models) if total_models is not None else 1  # Avoid division by zero
+            api_quota_remaining = max(0, api_quota_remaining) if api_quota_remaining is not None else 0
+            
+            return {
+                'api_quota_remaining': api_quota_remaining,
+                'scrapybara_instances': 5,  # Max concurrent instances
+                'memory_limit_mb': 1024,
+                'execution_timeout': 3600,  # 1 hour max execution
+                'model_health': {
+                    'healthy_models': healthy_models,
+                    'total_models': total_models,
+                    'health_ratio': healthy_models / total_models if total_models > 0 else 0
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating resource limits: {e}")
+            # Return safe default values
+            return {
+                'api_quota_remaining': 1000,
+                'scrapybara_instances': 5,
+                'memory_limit_mb': 1024,
+                'execution_timeout': 3600,
+                'model_health': {
+                    'healthy_models': 1,
+                    'total_models': 1,
+                    'health_ratio': 1.0
+                }
+            }
 
 class AgentOrchestrator:
     """Orchestrates collaboration between different Mama Bear agents"""
