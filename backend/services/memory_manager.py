@@ -1,6 +1,7 @@
 """
 Memory Manager Service
 Handles persistent memory operations using Mem0 for the Podplay Sanctuary
+Enhanced with Scout.new-level session management capabilities
 """
 
 import asyncio
@@ -10,6 +11,17 @@ from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 from mem0 import Memory
 import uuid
+
+# Import enhanced session management
+try:
+    from .enhanced_session_manager import (
+        EnhancedSessionManager, SessionType, SessionState, 
+        create_enhanced_session_manager
+    )
+    ENHANCED_SESSIONS_AVAILABLE = True
+except ImportError:
+    ENHANCED_SESSIONS_AVAILABLE = False
+    logger.warning("Enhanced session management not available")
 
 logger = logging.getLogger(__name__)
 
@@ -462,7 +474,9 @@ class MemoryManager:
             return {}
     
     def _get_or_create_session(self, user_id: str) -> str:
-        """Get or create a session ID for the user"""
+        """Get or create a session ID for the user (basic compatibility method)"""
+        # This method is kept for backward compatibility
+        # Enhanced session management should use EnhancedSessionManager
         if user_id not in self.user_sessions:
             self.user_sessions[user_id] = {
                 'session_id': str(uuid.uuid4()),

@@ -134,6 +134,7 @@ out/
 # Documentation (User Specified)
 # ========================
 docs/
+files/
 
 # ========================
 # Shared Components (User Specified)

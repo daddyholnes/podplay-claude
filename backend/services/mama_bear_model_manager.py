@@ -32,7 +32,7 @@ class ModelConfig:
     max_output_tokens: int = 8192
     temperature: float = 0.7
     
-    # Runtime tracking
+    # Runtime tracking - FIXED: Proper defaults instead of None
     current_requests_minute: int = 0
     current_requests_day: int = 0
     last_request_time: float = 0
@@ -41,6 +41,16 @@ class ModelConfig:
     consecutive_errors: int = 0
     is_healthy: bool = True
     last_error: Optional[str] = None
+    
+    def __post_init__(self):
+        """Initialize timestamps if they're still 0"""
+        import time
+        current_time = time.time()
+        
+        if self.last_minute_reset == 0:
+            self.last_minute_reset = current_time
+        if self.last_day_reset == 0:
+            self.last_day_reset = current_time
 
 @dataclass
 class MamaBearResponse:
@@ -68,9 +78,9 @@ class MamaBearModelManager:
         self.global_fallback_delay = 1.0  # Start with 1 second
         self.max_fallback_delay = 30.0
         self.health_check_interval = 300  # 5 minutes
+        self._monitoring_task = None
         
-        # Start background health monitoring
-        asyncio.create_task(self._background_health_monitor())
+        # Background health monitoring will be started separately to avoid event loop issues
     
     def _initialize_models(self) -> Dict[str, ModelConfig]:
         """Initialize all available Gemini 2.5 models with quota settings"""
@@ -154,6 +164,16 @@ class MamaBearModelManager:
         """Update request counters for quota management"""
         current_time = time.time()
         
+        # FIXED: Initialize counters if None
+        if model_config.current_requests_minute is None:
+            model_config.current_requests_minute = 0
+        if model_config.current_requests_day is None:
+            model_config.current_requests_day = 0
+        if model_config.last_minute_reset is None:
+            model_config.last_minute_reset = current_time
+        if model_config.last_day_reset is None:
+            model_config.last_day_reset = current_time
+        
         # Reset minute counter if needed
         if current_time - model_config.last_minute_reset >= 60:
             model_config.current_requests_minute = 0
@@ -177,13 +197,19 @@ class MamaBearModelManager:
             if not model_config.is_healthy or consecutive_errors >= 3:
                 return QuotaStatus.ERROR
             
-            # Safely get request counts with None protection
-            requests_day = model_config.current_requests_day or 0
-            requests_minute = model_config.current_requests_minute or 0
+            # FIXED: Safely get request counts with proper None protection
+            requests_day = model_config.current_requests_day
+            if requests_day is None:
+                requests_day = 0
+            
+            requests_minute = model_config.current_requests_minute
+            if requests_minute is None:
+                requests_minute = 0
+                
             daily_limit = model_config.requests_per_day or 1500
             minute_limit = model_config.requests_per_minute or 60
             
-            # Check daily quota
+            # Now safe to compare - no more NoneType errors!
             if requests_day >= daily_limit * 0.95:
                 return QuotaStatus.EXHAUSTED
             elif requests_day >= daily_limit * 0.8:
@@ -196,7 +222,7 @@ class MamaBearModelManager:
             return QuotaStatus.AVAILABLE
             
         except Exception as e:
-            logger.error(f"Error checking quota status: {e}")
+            self.logger.error(f"Error checking quota status: {e}")
             return QuotaStatus.ERROR
     
     def _select_optimal_model(self, message_context: Dict[str, Any]) -> Optional[ModelConfig]:
@@ -402,6 +428,19 @@ class MamaBearModelManager:
             except Exception as e:
                 self.logger.error(f"Health monitor error: {e}")
     
+    async def start_monitoring(self):
+        """Start background health monitoring (call this after event loop is available)"""
+        if self._monitoring_task is None:
+            self._monitoring_task = asyncio.create_task(self._background_health_monitor())
+            self.logger.info("🐻 Started background health monitoring")
+    
+    def stop_monitoring(self):
+        """Stop background health monitoring"""
+        if self._monitoring_task and not self._monitoring_task.done():
+            self._monitoring_task.cancel()
+            self._monitoring_task = None
+            self.logger.info("🐻 Stopped background health monitoring")
+    
     def get_model_status(self) -> Dict[str, Any]:
         """Get current status of all models for monitoring"""
         status = {}
@@ -511,9 +550,10 @@ class EnhancedMamaBearAgent:
         self.scrapybara = scrapybara_client
         self.memory = memory_manager
         self.model_manager = MamaBearModelManager()
+        self.logger = logging.getLogger(__name__)
         
-        # Initialize model manager
-        asyncio.create_task(self.model_manager.warm_up_models())
+        # Initialize model manager asynchronously (safely deferred)
+        self._initialization_complete = False
         
         self.variants = {
             'main_chat': ResearchSpecialist(),
@@ -524,6 +564,14 @@ class EnhancedMamaBearAgent:
             'integration': IntegrationArchitect(),
             'live_api': LiveAPISpecialist()
         }
+    
+    async def initialize(self):
+        """Initialize the model manager asynchronously (call this after event loop is available)"""
+        if not self._initialization_complete:
+            await self.model_manager.start_monitoring()
+            await self.model_manager.warm_up_models()
+            self._initialization_complete = True
+            self.logger.info("🐻 Enhanced Mama Bear Agent initialization complete")
     
     async def process_message(self, message, page_context, user_id, **kwargs):
         """Process message with intelligent model selection"""

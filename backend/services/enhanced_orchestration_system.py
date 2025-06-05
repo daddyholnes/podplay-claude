@@ -1,7 +1,7 @@
-# backend/services/mama_bear_orchestration.py
+# backend/services/enhanced_orchestration_system.py
 """
-🐻 Mama Bear Agent Orchestration System
-Core logic for agent collaboration, context awareness, and workflow management
+🐻 Enhanced Mama Bear Agent Orchestration System
+Advanced orchestration with specialized agents, intelligent planning, and collaborative workflows
 """
 
 import asyncio
@@ -13,15 +13,6 @@ from dataclasses import dataclass, asdict
 from abc import ABC, abstractmethod
 import logging
 from collections import defaultdict, deque
-from .mama_bear_specialized_variants import (
-    ResearchSpecialist, DevOpsSpecialist, ScoutCommander, 
-    ModelCoordinator, ToolCurator, IntegrationArchitect, LiveAPISpecialist,
-    SpecializedVariant
-)
-from .mama_bear_workflow_logic import (
-    initialize_workflow_intelligence, create_collaboration_orchestrator,
-    WorkflowIntelligence, CollaborationOrchestrator, WorkflowDecision
-)
 
 logger = logging.getLogger(__name__)
 
@@ -180,86 +171,42 @@ class ContextAwareness:
             'mama_bear': ['code_generation', 'planning', 'review', 'coordination'],
             'model_manager': ['model_selection', 'fine_tuning', 'deployment', 'monitoring'],
             'monitor': ['resource_tracking', 'alerting', 'quota_management', 'billing'],
-            'planner': ['task_decomposition', 'dependency_analysis', 'estimation', 'optimization']
+            'planner': ['task_decomposition', 'dependency_analysis', 'estimation', 'optimization'],
+            'research': ['web_scraping', 'document_analysis', 'data_synthesis', 'trend_analysis'],
+            'devops': ['deployment', 'monitoring', 'infrastructure', 'CI/CD'],
+            'integration': ['api_design', 'system_integration', 'data_flow', 'service_mesh'],
+            'live_api': ['real_time_data', 'webhooks', 'streaming', 'event_processing']
         }
         
         return tool_mapping.get(agent_type, [])
     
     async def _get_resource_limits(self, agent_id: str) -> Dict[str, Any]:
         """Get resource limits for this agent"""
-        try:
-            # Check current quota status from model manager
-            model_status = self.model_manager.get_model_status()
-            
-            # Calculate remaining quota from all available models
-            healthy_models = 0
-            total_models = 0
-            api_quota_remaining = 0
-            
-            if model_status and isinstance(model_status, dict):
-                for model_id, model_info in model_status.items():
-                    if model_info and isinstance(model_info, dict):
-                        total_models += 1
-                        
-                        # Check if model is healthy
-                        is_healthy = model_info.get('is_healthy', False)
-                        if is_healthy:
-                            healthy_models += 1
-                        
-                        # Calculate remaining quota safely
-                        requests_today = model_info.get('requests_today', 0)
-                        if requests_today is None:
-                            requests_today = 0
-                        
-                        # Safely get daily limit and ensure it's valid
-                        daily_limit = 1500  # Default daily limit
-                        try:
-                            remaining = max(0, daily_limit - int(requests_today))
-                            api_quota_remaining += remaining
-                        except (TypeError, ValueError):
-                            # If there's any issue with conversion, use safe default
-                            api_quota_remaining += daily_limit
-            
-            # Ensure we have valid numbers for comparisons
-            healthy_models = max(0, healthy_models) if healthy_models is not None else 0
-            total_models = max(1, total_models) if total_models is not None else 1  # Avoid division by zero
-            api_quota_remaining = max(0, api_quota_remaining) if api_quota_remaining is not None else 0
-            
-            return {
-                'api_quota_remaining': api_quota_remaining,
-                'scrapybara_instances': 5,  # Max concurrent instances
-                'memory_limit_mb': 1024,
-                'execution_timeout': 3600,  # 1 hour max execution
-                'model_health': {
-                    'healthy_models': healthy_models,
-                    'total_models': total_models,
-                    'health_ratio': healthy_models / total_models if total_models > 0 else 0
-                }
-            }
-            
-        except Exception as e:
-            logger.error(f"Error calculating resource limits: {e}")
-            # Return safe default values
-            return {
-                'api_quota_remaining': 1000,
-                'scrapybara_instances': 5,
-                'memory_limit_mb': 1024,
-                'execution_timeout': 3600,
-                'model_health': {
-                    'healthy_models': 1,
-                    'total_models': 1,
-                    'health_ratio': 1.0
-                }
-            }
+        # Check current quota status from model manager
+        model_status = self.model_manager.get_model_status()
+        
+        return {
+            'api_quota_remaining': sum(
+                model['quota_limit'] - model['quota_used'] 
+                for model in model_status['models']
+            ),
+            'scrapybara_instances': 5,  # Max concurrent instances
+            'memory_limit_mb': 1024,
+            'execution_timeout': 3600  # 1 hour max execution
+        }
 
-class AgentOrchestrator:
-    """Orchestrates collaboration between different Mama Bear agents"""
+class EnhancedAgentOrchestrator:
+    """Enhanced orchestration with specialized agents and intelligent coordination"""
     
     def __init__(self, memory_manager, model_manager, scrapybara_client):
         self.memory = memory_manager
         self.model_manager = model_manager
         self.scrapybara = scrapybara_client
         self.context_awareness = ContextAwareness(memory_manager, model_manager)
+        
+        # Enhanced workflow systems
+        self.workflow_intelligence = None
+        self.collaboration_orchestrator = None
         
         # Agent registry
         self.agents = {}
@@ -271,155 +218,178 @@ class AgentOrchestrator:
         self.agent_messages = defaultdict(deque)
         self.collaboration_sessions = {}
         
-        # Advanced workflow intelligence and collaboration systems
-        self.workflow_intelligence = None
-        self.collaboration_orchestrator = None
+        # Performance tracking
+        self.agent_performance = defaultdict(lambda: {'success_rate': 0.8, 'avg_response_time': 2.0})
         
-        # Initialize systems
+        # Initialize specialized agents
         self._initialize_agents()
-        asyncio.create_task(self._initialize_workflow_systems())
     
     def _initialize_agents(self):
-        """Initialize all Mama Bear agent types"""
-        from .mama_bear_specialized_variants import (
-            ResearchSpecialist, DevOpsSpecialist, ScoutCommander,
-            ModelCoordinator, ToolCurator, IntegrationArchitect, LiveAPISpecialist
-        )
+        """Initialize enhanced specialized agents"""
         
-        self.agents = {
-            'research_specialist': MamaBearAgent('research_specialist', ResearchSpecialist(), self),
-            'devops_specialist': MamaBearAgent('devops_specialist', DevOpsSpecialist(), self),
-            'scout_commander': MamaBearAgent('scout_commander', ScoutCommander(), self),
-            'model_coordinator': MamaBearAgent('model_coordinator', ModelCoordinator(), self),
-            'tool_curator': MamaBearAgent('tool_curator', ToolCurator(), self),
-            'integration_architect': MamaBearAgent('integration_architect', IntegrationArchitect(), self),
-            'live_api_specialist': MamaBearAgent('live_api_specialist', LiveAPISpecialist(), self),
-            'lead_developer': LeadDeveloperAgent('lead_developer', self)  # Master coordinator
-        }
-    
-    async def _initialize_workflow_systems(self):
-        """Initialize advanced workflow intelligence and collaboration systems"""
+        # Import specialized agent variants
         try:
-            # Initialize workflow intelligence with access to memory and model management
-            self.workflow_intelligence = await initialize_workflow_intelligence(
-                model_manager=self.model_manager,
-                memory_manager=self.memory
+            from .mama_bear_specialized_variants import (
+                ResearchSpecialist, DevOpsSpecialist, ScoutCommander,
+                ModelCoordinator, ToolCurator, IntegrationArchitect, 
+                LiveAPISpecialist
             )
             
-            # Create collaboration orchestrator
-            self.collaboration_orchestrator = create_collaboration_orchestrator(self.workflow_intelligence)
+            self.agents = {
+                'research_specialist': MamaBearAgent('research_specialist', ResearchSpecialist(), self),
+                'devops_specialist': MamaBearAgent('devops_specialist', DevOpsSpecialist(), self),
+                'scout_commander': MamaBearAgent('scout_commander', ScoutCommander(), self),
+                'model_coordinator': MamaBearAgent('model_coordinator', ModelCoordinator(), self),
+                'tool_curator': MamaBearAgent('tool_curator', ToolCurator(), self),
+                'integration_architect': MamaBearAgent('integration_architect', IntegrationArchitect(), self),
+                'live_api_specialist': MamaBearAgent('live_api_specialist', LiveAPISpecialist(), self),
+                'lead_developer': LeadDeveloperAgent('lead_developer', self)  # Master coordinator
+            }
+        except ImportError:
+            # Fallback to basic agents if specialized variants not available
+            logger.warning("Specialized agent variants not found, using basic agents")
+            self.agents = {
+                'research_specialist': MamaBearAgent('research_specialist', BasicResearchSpecialist(), self),
+                'devops_specialist': MamaBearAgent('devops_specialist', BasicDevOpsSpecialist(), self),
+                'scout_commander': MamaBearAgent('scout_commander', BasicScoutCommander(), self),
+                'model_coordinator': MamaBearAgent('model_coordinator', BasicModelCoordinator(), self),
+                'tool_curator': MamaBearAgent('tool_curator', BasicToolCurator(), self),
+                'integration_architect': MamaBearAgent('integration_architect', BasicIntegrationArchitect(), self),
+                'live_api_specialist': MamaBearAgent('live_api_specialist', BasicLiveAPISpecialist(), self),
+                'lead_developer': LeadDeveloperAgent('lead_developer', self)
+            }
+    
+    async def initialize_workflow_systems(self):
+        """Initialize advanced workflow intelligence systems"""
+        try:
+            from .mama_bear_workflow_logic import WorkflowIntelligence, CollaborationOrchestrator
             
-            logger.info("🚀 Advanced workflow systems initialized successfully")
+            self.workflow_intelligence = WorkflowIntelligence(
+                self.model_manager, 
+                self.memory
+            )
             
-        except Exception as e:
-            logger.error(f"Failed to initialize workflow systems: {e}")
-            # Fallback to basic operation
-            self.workflow_intelligence = None
-            self.collaboration_orchestrator = None
+            self.collaboration_orchestrator = CollaborationOrchestrator(
+                self.model_manager,
+                self.memory,
+                self.workflow_intelligence
+            )
+            
+            logger.info("✅ Advanced workflow intelligence initialized")
+            
+        except ImportError:
+            logger.warning("⚠️ Advanced workflow intelligence not available, using basic routing")
     
     async def process_user_request(self, message: str, user_id: str, page_context: str = 'main_chat') -> Dict[str, Any]:
-        """Main entry point for user requests - uses advanced workflow intelligence"""
+        """Enhanced request processing with intelligent agent routing"""
         
         # Update global context with user intent
         await self.context_awareness.update_global_context('user_intent', message)
         await self.context_awareness.update_global_context('user_id', user_id)
         await self.context_awareness.update_global_context('page_context', page_context)
         
-        # Use advanced workflow intelligence if available
-        if self.workflow_intelligence and self.collaboration_orchestrator:
+        # Check if workflow intelligence is available
+        if self.workflow_intelligence:
             return await self._process_with_workflow_intelligence(message, user_id, page_context)
         else:
-            # Fallback to legacy analysis
-            logger.warning("Advanced workflow systems not available, using fallback")
             return await self._process_with_legacy_analysis(message, user_id, page_context)
     
     async def _process_with_workflow_intelligence(self, message: str, user_id: str, page_context: str) -> Dict[str, Any]:
         """Process request using advanced workflow intelligence"""
         
         try:
-            # Build context for workflow intelligence
-            context = {
-                'user_id': user_id,
-                'page_context': page_context,
-                'timestamp': datetime.now(),
-                'available_agents': list(self.agents.keys()),
-                'active_tasks': len(self.active_tasks),
-                'collaboration_sessions': len(self.collaboration_sessions)
-            }
+            # Get user patterns for intelligent routing
+            user_patterns = await self.memory.get_user_patterns(user_id)
             
-            # Analyze request intent with AI-powered workflow intelligence
-            decision: WorkflowDecision = await self.workflow_intelligence.analyze_request_intent(message, context)
-            
-            logger.info(f"🧠 Workflow Decision: {decision.decision_type} with {decision.confidence.value} confidence")
-            logger.info(f"🤖 Selected agents: {decision.selected_agents}")
-            logger.info(f"🔄 Reasoning: {decision.reasoning}")
-            
-            # Execute using collaboration orchestrator
-            if len(decision.selected_agents) > 1:
-                # Multi-agent collaboration
-                result = await self.collaboration_orchestrator.orchestrate_collaborative_workflow(
-                    decision, message, context
-                )
-                
-                # Update agent performance tracking
-                for agent_id in decision.selected_agents:
-                    await self.workflow_intelligence.update_agent_performance(
-                        agent_id, {'success': result.get('success', False), 'duration': 0}
-                    )
-                
-                return result
-            else:
-                # Single agent execution with enhanced context
-                agent_id = decision.selected_agents[0] if decision.selected_agents else 'lead_developer'
-                agent = self.agents.get(agent_id, self.agents['lead_developer'])
-                
-                # Execute with enhanced context
-                result = await agent.handle_request(message, user_id)
-                
-                # Update performance tracking
-                await self.workflow_intelligence.update_agent_performance(
-                    agent_id, {'success': result.get('success', False), 'duration': 0}
-                )
-                
-                # Enhance result with workflow decision metadata
-                result['workflow_decision'] = {
-                    'type': decision.decision_type,
-                    'confidence': decision.confidence.value,
-                    'reasoning': decision.reasoning,
-                    'complexity': decision.estimated_complexity,
-                    'estimated_duration': decision.estimated_duration
+            # Use workflow intelligence to make decisions
+            decision = await self.workflow_intelligence.make_decision(
+                user_input=message,
+                context={
+                    'page_context': page_context,
+                    'user_patterns': user_patterns,
+                    'available_agents': list(self.agents.keys()),
+                    'agent_performance': dict(self.agent_performance)
                 }
+            )
+            
+            # Save decision pattern for learning
+            await self.memory.save_decision_pattern(user_id, {
+                'workflow_type': decision.workflow_type,
+                'selected_agents': decision.agent_assignments,
+                'confidence_score': decision.confidence_score,
+                'reasoning': decision.reasoning,
+                'user_input': message,
+                'page_context': page_context
+            })
+            
+            # Execute based on decision
+            if decision.workflow_type == 'single_agent':
+                # Single agent execution
+                primary_agent = decision.agent_assignments[0]
+                agent = self.agents.get(primary_agent)
+                if agent:
+                    result = await agent.handle_request(message, user_id)
+                    
+                    # Track performance
+                    await self._track_agent_performance(primary_agent, result.get('success', False))
+                    
+                    return result
+                else:
+                    return await self._fallback_response(message, user_id)
+            
+            elif decision.workflow_type in ['sequential', 'parallel', 'hierarchical']:
+                # Multi-agent collaboration
+                return await self._execute_collaborative_workflow(decision, message, user_id)
                 
-                return result
+            else:
+                # Unknown workflow type, use fallback
+                return await self._fallback_response(message, user_id)
                 
         except Exception as e:
-            logger.error(f"Error in workflow intelligence processing: {e}")
+            logger.error(f"Workflow intelligence error: {e}")
             return await self._process_with_legacy_analysis(message, user_id, page_context)
     
+    async def _execute_collaborative_workflow(self, decision, message: str, user_id: str) -> Dict[str, Any]:
+        """Execute collaborative workflow using collaboration orchestrator"""
+        
+        if not self.collaboration_orchestrator:
+            return await self._fallback_response(message, user_id)
+        
+        try:
+            # Use collaboration orchestrator
+            result = await self.collaboration_orchestrator.execute_workflow(
+                workflow_type=decision.workflow_type,
+                agent_assignments=decision.agent_assignments,
+                user_input=message,
+                user_id=user_id,
+                orchestrator=self
+            )
+            
+            # Track collaborative performance
+            for agent_id in decision.agent_assignments:
+                await self._track_agent_performance(agent_id, result.get('success', False))
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Collaborative workflow error: {e}")
+            return await self._fallback_response(message, user_id)
+    
     async def _process_with_legacy_analysis(self, message: str, user_id: str, page_context: str) -> Dict[str, Any]:
-        """Fallback processing using legacy analysis"""
+        """Fallback processing using basic analysis"""
         
         # Analyze request to determine optimal agent strategy
         strategy = await self._analyze_request(message, page_context)
         
-        # Debug logging
-        logger.info(f"Strategy returned from _analyze_request: {strategy}")
-        logger.info(f"Strategy type: {type(strategy)}")
-        
-        if not strategy or not isinstance(strategy, dict):
-            logger.error(f"Invalid strategy returned: {strategy}")
-            strategy = self._fallback_strategy(page_context)
-            logger.info(f"Using fallback strategy: {strategy}")
-        
-        if 'type' not in strategy:
-            logger.error(f"Strategy missing 'type' key: {strategy}")
-            strategy = self._fallback_strategy(page_context)
-            logger.info(f"Using fallback strategy after missing type: {strategy}")
-        
         if strategy['type'] == 'simple_response':
             # Single agent can handle this
             agent = self.agents[strategy['primary_agent']]
-            return await agent.handle_request(message, user_id)
+            result = await agent.handle_request(message, user_id)
+            
+            # Track performance
+            await self._track_agent_performance(strategy['primary_agent'], result.get('success', False))
+            
+            return result
             
         elif strategy['type'] == 'collaborative':
             # Multiple agents need to collaborate
@@ -478,46 +448,9 @@ class AgentOrchestrator:
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             try:
-                parsed_response = json.loads(json_match.group())
-                
-                # Handle nested strategy format from AI
-                if 'strategy' in parsed_response and isinstance(parsed_response['strategy'], dict):
-                    strategy_obj = parsed_response['strategy']
-                    
-                    # Convert AI format to expected format
-                    if 'classification' in strategy_obj:
-                        # Map classification to type
-                        strategy_type = strategy_obj['classification']
-                        if strategy_type == 'simple_response':
-                            # Map handling_agent to primary_agent with fallback
-                            agent_name = strategy_obj.get('handling_agent', 'lead_developer')
-                            
-                            # Map AI agent names to actual agent names
-                            agent_mapping = {
-                                'GreetingAgent': 'research_specialist',
-                                'ResearchAgent': 'research_specialist', 
-                                'CodeAgent': 'lead_developer',
-                                'DeployAgent': 'devops_specialist'
-                            }
-                            
-                            primary_agent = agent_mapping.get(agent_name, 'research_specialist')
-                            
-                            return {
-                                'type': 'simple_response',
-                                'primary_agent': primary_agent
-                            }
-                        elif strategy_type == 'collaborative':
-                            return {
-                                'type': 'collaborative',
-                                'agents': strategy_obj.get('agents', ['research_specialist', 'lead_developer'])
-                            }
-                
-                # If it's already in the correct format, return it
-                if 'type' in parsed_response:
-                    return parsed_response
-                    
-            except Exception as e:
-                logger.warning(f"Failed to parse AI strategy response: {e}")
+                return json.loads(json_match.group())
+            except:
+                pass
         
         # Fallback: analyze keywords in response
         if 'simple' in response.lower():
@@ -689,6 +622,32 @@ class AgentOrchestrator:
             }
         }
     
+    async def _track_agent_performance(self, agent_id: str, success: bool):
+        """Track agent performance for optimization"""
+        current = self.agent_performance[agent_id]
+        
+        # Update success rate with exponential moving average
+        alpha = 0.1
+        current['success_rate'] = (1 - alpha) * current['success_rate'] + alpha * (1.0 if success else 0.0)
+        
+        # Update timestamp
+        current['last_update'] = datetime.now()
+    
+    async def _fallback_response(self, message: str, user_id: str) -> Dict[str, Any]:
+        """Fallback response when routing fails"""
+        
+        # Use lead developer as fallback
+        lead_developer = self.agents.get('lead_developer')
+        if lead_developer:
+            return await lead_developer.handle_request(message, user_id)
+        else:
+            return {
+                'success': True,
+                'content': "🐻 I'm here to help! Let me gather my thoughts and get back to you.",
+                'agent_id': 'system',
+                'metadata': {'fallback': True}
+            }
+    
     async def send_agent_message(self, from_agent: str, to_agent: str, message: str, context: Dict = None):
         """Enable agents to communicate with each other"""
         
@@ -716,7 +675,8 @@ class AgentOrchestrator:
                 'state': agent.state.value,
                 'current_task': agent.current_task,
                 'last_activity': agent.last_activity,
-                'message_queue_size': len(self.agent_messages[agent_id])
+                'message_queue_size': len(self.agent_messages[agent_id]),
+                'performance': self.agent_performance.get(agent_id, {})
             }
         
         return {
@@ -725,42 +685,39 @@ class AgentOrchestrator:
             'active_tasks': len(self.active_tasks),
             'queued_tasks': len(self.task_queue),
             'completed_tasks': len(self.completed_tasks),
+            'collaboration_sessions': len(self.collaboration_sessions),
             'model_manager_status': self.model_manager.get_model_status(),
-            'global_context': list(self.context_awareness.global_context.keys())
+            'global_context': list(self.context_awareness.global_context.keys()),
+            'workflow_intelligence_available': self.workflow_intelligence is not None
         }
-
+    
     async def _monitor_system_health(self):
-        """Monitor system health and perform maintenance tasks"""
+        """Background system health monitoring"""
         while True:
             try:
-                # Check agent health
+                await asyncio.sleep(300)  # Check every 5 minutes
+                
+                # Monitor agent health
                 for agent_id, agent in self.agents.items():
                     if agent.state == AgentState.ERROR:
-                        logger.warning(f"Agent {agent_id} is in error state")
-                        # Could implement recovery logic here
+                        logger.warning(f"Agent {agent_id} in error state, attempting recovery")
+                        # Could implement agent recovery logic here
                 
-                # Clean up old completed tasks
-                cutoff_time = datetime.now() - timedelta(hours=24)
-                tasks_to_remove = [
-                    task_id for task_id, task in self.completed_tasks.items()
-                    if task.completed_at and task.completed_at < cutoff_time
-                ]
-                for task_id in tasks_to_remove:
-                    del self.completed_tasks[task_id]
+                # Monitor memory usage
+                memory_cache_size = len(self.memory.memory_cache)
+                if memory_cache_size > 1000:
+                    logger.info(f"Memory cache has {memory_cache_size} entries, consolidation may be needed")
                 
-                # Check memory usage and cleanup if needed
-                if hasattr(self.memory, 'cleanup_old_memories'):
-                    await self.memory.cleanup_old_memories()
-                
-                # Wait 5 minutes before next health check
-                await asyncio.sleep(300)
+                # Monitor collaboration sessions
+                active_sessions = len(self.collaboration_sessions)
+                if active_sessions > 10:
+                    logger.info(f"High number of active collaboration sessions: {active_sessions}")
                 
             except Exception as e:
-                logger.error(f"Error in system health monitoring: {e}")
-                await asyncio.sleep(60)  # Wait 1 minute before retrying
+                logger.error(f"System health monitor error: {e}")
 
 class MamaBearAgent:
-    """Base class for all Mama Bear agents"""
+    """Enhanced base class for all Mama Bear agents"""
     
     def __init__(self, agent_id: str, specialist_variant, orchestrator):
         self.id = agent_id
@@ -770,33 +727,54 @@ class MamaBearAgent:
         self.current_task = None
         self.last_activity = datetime.now()
         self.capabilities = []
+        self.performance_metrics = {
+            'total_requests': 0,
+            'successful_requests': 0,
+            'average_response_time': 0.0
+        }
     
     async def handle_request(self, message: str, user_id: str) -> Dict[str, Any]:
         """Handle a direct user request"""
         
+        start_time = datetime.now()
         self.state = AgentState.THINKING
-        self.last_activity = datetime.now()
+        self.last_activity = start_time
+        self.performance_metrics['total_requests'] += 1
         
         try:
             # Get context
             context = await self.orchestrator.context_awareness.get_agent_context(self.id)
             
-            # Get system prompt from variant
-            system_prompt = self.variant.get_system_prompt()
+            # Get relevant memory context
+            relevant_context = await self.orchestrator.memory.get_relevant_context(
+                user_id=user_id,
+                query=message,
+                agent_id=self.id,
+                limit=3
+            )
             
-            # Build full prompt
+            # Get system prompt from variant
+            system_prompt = self.variant.get_system_prompt() if hasattr(self.variant, 'get_system_prompt') else f"You are {self.id}, a helpful AI assistant."
+            
+            # Build full prompt with context
+            context_str = ""
+            if relevant_context:
+                context_str = "\n\nRelevant context from previous conversations:\n"
+                for ctx in relevant_context:
+                    context_str += f"- {ctx['content'].get('user_message', '')}: {ctx['content'].get('agent_response', '')}\n"
+            
             full_prompt = f"""
             {system_prompt}
             
             Current context:
             - User: {user_id}
-            - Previous conversation: {context.conversation_history[-3:] if context.conversation_history else 'None'}
-            - Available tools: {context.available_tools}
-            - Project context: {context.project_context}
+            - Agent capabilities: {context.available_tools}
+            - Resource limits: {context.resource_limits}
+            {context_str}
             
             User request: {message}
             
-            Please respond as this Mama Bear specialist.
+            Please respond as this Mama Bear specialist with your unique expertise and caring approach.
             """
             
             # Get response using model manager
@@ -807,8 +785,18 @@ class MamaBearAgent:
             )
             
             self.state = AgentState.IDLE
+            response_time = (datetime.now() - start_time).total_seconds()
             
             if result['success']:
+                self.performance_metrics['successful_requests'] += 1
+                
+                # Update average response time
+                total_requests = self.performance_metrics['total_requests']
+                current_avg = self.performance_metrics['average_response_time']
+                self.performance_metrics['average_response_time'] = (
+                    (current_avg * (total_requests - 1) + response_time) / total_requests
+                )
+                
                 # Save interaction to memory
                 await self.orchestrator.memory.save_interaction(
                     user_id=user_id,
@@ -816,7 +804,9 @@ class MamaBearAgent:
                     response=result['response'],
                     metadata={
                         'agent_id': self.id,
-                        'model_used': result['model_used']
+                        'model_used': result['model_used'],
+                        'response_time': response_time,
+                        'success': True
                     }
                 )
                 
@@ -825,14 +815,16 @@ class MamaBearAgent:
                     'content': result['response'],
                     'agent_id': self.id,
                     'model_used': result['model_used'],
+                    'response_time': response_time,
                     'metadata': result.get('metadata', {})
                 }
             else:
                 return {
                     'success': False,
-                    'content': "I'm having trouble accessing my models right now. Let me try a different approach!",
+                    'content': "I'm having trouble accessing my models right now. Let me try a different approach! 🐻",
                     'error': result.get('error'),
-                    'agent_id': self.id
+                    'agent_id': self.id,
+                    'response_time': response_time
                 }
                 
         except Exception as e:
@@ -864,51 +856,11 @@ class MamaBearAgent:
         
         # Could trigger collaborative actions here
 
-class LeadDeveloperVariant(SpecializedVariant):
-    """Lead Developer variant for the main coordinator agent"""
-    
-    def __init__(self):
-        super().__init__("lead_developer")
-        self.capabilities = [
-            "planning", "coordination", "code_review", "architecture", 
-            "project_management", "team_leadership", "technical_strategy"
-        ]
-        self.personality_traits = {
-            "leadership": 0.95,
-            "strategic_thinking": 0.90,
-            "coordination": 0.95,
-            "problem_solving": 0.88
-        }
-        self.tools = ["project_planner", "code_reviewer", "architect_tools", "coordinator"]
-    
-    async def process_task(self, task: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-        """Process leadership and coordination tasks"""
-        return {
-            "status": "completed",
-            "coordination_plan": [],
-            "team_assignments": {},
-            "next_steps": []
-        }
-    
-    def get_system_prompt(self) -> str:
-        return """You are the Lead Developer Mama Bear 🐻‍💼. You excel at:
-
-- Coordinating complex projects and multi-agent collaborations
-- Strategic technical planning and architecture decisions
-- Code review and quality assurance
-- Project management and team leadership
-- Breaking down complex problems into manageable tasks
-- Synthesizing inputs from multiple specialists
-
-You approach every challenge with strategic thinking, always considering the big picture while ensuring attention to detail. You're the bridge between user needs and technical implementation."""
-
 class LeadDeveloperAgent(MamaBearAgent):
     """Special agent that coordinates other agents and handles complex planning"""
     
     def __init__(self, agent_id: str, orchestrator):
-        # Create a LeadDeveloperVariant instead of passing None
-        lead_variant = LeadDeveloperVariant()
-        super().__init__(agent_id, lead_variant, orchestrator)
+        super().__init__(agent_id, None, orchestrator)
         self.capabilities = ['planning', 'coordination', 'code_review', 'architecture']
     
     async def create_plan(self, request: str, user_id: str) -> Dict[str, Any]:
@@ -956,15 +908,48 @@ class LeadDeveloperAgent(MamaBearAgent):
                 'user_id': user_id
             }
 
+# Basic specialist classes as fallbacks
+class BasicResearchSpecialist:
+    def get_system_prompt(self):
+        return "You are a research specialist focused on gathering and analyzing information."
+
+class BasicDevOpsSpecialist:
+    def get_system_prompt(self):
+        return "You are a DevOps specialist focused on deployment and infrastructure."
+
+class BasicScoutCommander:
+    def get_system_prompt(self):
+        return "You are a Scout commander specialized in web scraping and data gathering."
+
+class BasicModelCoordinator:
+    def get_system_prompt(self):
+        return "You are a model coordinator focused on AI model management and selection."
+
+class BasicToolCurator:
+    def get_system_prompt(self):
+        return "You are a tool curator specialized in integrating and managing development tools."
+
+class BasicIntegrationArchitect:
+    def get_system_prompt(self):
+        return "You are an integration architect focused on system design and API integration."
+
+class BasicLiveAPISpecialist:
+    def get_system_prompt(self):
+        return "You are a live API specialist focused on real-time data and webhook integrations."
+
 # Integration function for existing Flask app
-async def initialize_orchestration(app, memory_manager, model_manager, scrapybara_client):
-    """Initialize the orchestration system and attach to Flask app"""
+async def initialize_enhanced_orchestration(app, memory_manager, model_manager, scrapybara_client):
+    """Initialize the enhanced orchestration system and attach to Flask app"""
     
-    orchestrator = AgentOrchestrator(memory_manager, model_manager, scrapybara_client)
+    orchestrator = EnhancedAgentOrchestrator(memory_manager, model_manager, scrapybara_client)
+    
+    # Initialize workflow systems
+    await orchestrator.initialize_workflow_systems()
+    
     app.mama_bear_orchestrator = orchestrator
     
     # Start background tasks
     asyncio.create_task(orchestrator._monitor_system_health())
     
-    logger.info("🐻 Mama Bear Orchestration System initialized successfully!")
+    logger.info("🐻 Enhanced Mama Bear Orchestration System initialized successfully!")
     return orchestrator
