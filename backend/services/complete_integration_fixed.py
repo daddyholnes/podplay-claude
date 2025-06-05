@@ -190,8 +190,10 @@ class CompleteMamaBearSystem:
             try:
                 # Initialize orchestrator with proper error handling
                 self.orchestrator = await initialize_orchestration(
-                    self.memory_manager,
-                    self.model_manager
+                    app=self.app,
+                    memory_manager=self.memory_manager,
+                    model_manager=self.model_manager,
+                    scrapybara_client=None
                 )
                 
                 # Update app config
@@ -202,10 +204,7 @@ class CompleteMamaBearSystem:
                 if integrate_orchestration_with_app:
                     integrate_orchestration_with_app(
                         self.app,
-                        self.socketio,
-                        self.memory_manager,
-                        self.model_manager,
-                        self.scrapybara_client
+                        self.socketio
                     )
                 
                 logger.info("✅ Orchestration system initialized")

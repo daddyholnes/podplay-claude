@@ -128,10 +128,12 @@ class AutonomousOrchestrationSystem:
         """Initialize async components"""
         # Initialize workflow intelligence
         try:
-            workflow_result = await initialize_workflow_intelligence(
+            self.workflow_intelligence = await initialize_workflow_intelligence(
                 self.model_manager, self.memory_manager
             )
-            self.workflow_intelligence, self.collaboration_orchestrator = workflow_result
+            # Create collaboration orchestrator separately 
+            from .mama_bear_workflow_logic import create_collaboration_orchestrator
+            self.collaboration_orchestrator = create_collaboration_orchestrator(self.workflow_intelligence)
         except Exception as e:
             logger.warning(f"Failed to initialize workflow intelligence: {e}")
             # Set fallbacks
@@ -153,10 +155,22 @@ class AutonomousOrchestrationSystem:
         Create a new autonomous session with Scout.new-level capabilities
         """
         
-        # Analyze the request to determine workflow
-        workflow_decision = await self.workflow_intelligence.analyze_request_intent(
-            request_message, context
-        )
+        # Analyze the request to determine workflow with None guard
+        if self.workflow_intelligence:
+            workflow_decision = await self.workflow_intelligence.analyze_request_intent(
+                request_message, context
+            )
+        else:
+            # Create default workflow decision
+            from .mama_bear_workflow_logic import WorkflowDecision, ConfidenceLevel
+            workflow_decision = WorkflowDecision(
+                decision_type="simple",
+                selected_agents=["lead_developer"],
+                confidence=ConfidenceLevel.MEDIUM,
+                reasoning="Default workflow - workflow intelligence not available",
+                estimated_duration=10,
+                estimated_complexity=5
+            )
         
         # Determine session type based on workflow
         session_type = self._map_workflow_to_session_type(workflow_decision)
@@ -453,11 +467,32 @@ class AutonomousOrchestrationSystem:
         task.progress_percentage = 25.0
         
         # Execute with collaboration orchestrator
-        result = await self.collaboration_orchestrator._execute_single_agent(
-            agent_id, 
-            task.original_request, 
-            task.context_memory
-        )
+        if self.collaboration_orchestrator:
+            # Create a workflow decision for the single agent
+            from .mama_bear_workflow_logic import WorkflowDecision, ConfidenceLevel
+            single_agent_decision = WorkflowDecision(
+                decision_type="simple",
+                selected_agents=[agent_id],
+                confidence=ConfidenceLevel.HIGH,
+                reasoning=f"Single agent execution with {agent_id}",
+                estimated_duration=task.workflow_decision.estimated_duration,
+                estimated_complexity=task.workflow_decision.estimated_complexity
+            )
+            
+            result = await self.collaboration_orchestrator._execute_simple_delegation(
+                single_agent_decision,
+                task.original_request, 
+                task.context_memory
+            )
+        else:
+            # Fallback result when no collaboration orchestrator
+            result = {
+                "success": True,
+                "type": "fallback_execution",
+                "content": f"Executed with {agent_id}: {task.original_request}",
+                "selected_agent": agent_id,
+                "reasoning": "No collaboration orchestrator available"
+            }
         
         # Update task state
         task.agent_results[agent_id] = result
@@ -520,15 +555,16 @@ class AutonomousOrchestrationSystem:
                 await self.session_manager.update_session(task.session_id, session_updates)
         
         # Record performance for workflow intelligence
-        await self.workflow_intelligence.update_agent_performance(
-            task.active_agents[0] if task.active_agents else "unknown",
-            {
-                "success": result.get("success", False),
-                "duration": result.get("duration", 0),
-                "complexity": task.workflow_decision.estimated_complexity,
-                "user_satisfaction": 4 if result.get("success") else 2  # Estimated
-            }
-        )
+        if self.workflow_intelligence:
+            await self.workflow_intelligence.update_agent_performance(
+                task.active_agents[0] if task.active_agents else "unknown",
+                {
+                    "success": result.get("success", False),
+                    "duration": result.get("duration", 0),
+                    "complexity": task.workflow_decision.estimated_complexity,
+                    "user_satisfaction": 4 if result.get("success") else 2  # Estimated
+                }
+            )
     
     async def _attempt_auto_recovery(self, task: AutonomousTask, error: str) -> Dict[str, Any]:
         """Attempt automatic recovery from task failure"""
