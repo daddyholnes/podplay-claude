@@ -15,7 +15,8 @@ import logging
 from collections import defaultdict, deque
 from .mama_bear_specialized_variants import (
     ResearchSpecialist, DevOpsSpecialist, ScoutCommander, 
-    ModelCoordinator, ToolCurator, IntegrationArchitect, LiveAPISpecialist
+    ModelCoordinator, ToolCurator, IntegrationArchitect, LiveAPISpecialist,
+    SpecializedVariant
 )
 
 logger = logging.getLogger(__name__)
@@ -756,11 +757,51 @@ class MamaBearAgent:
         
         # Could trigger collaborative actions here
 
+class LeadDeveloperVariant(SpecializedVariant):
+    """Lead Developer variant for the main coordinator agent"""
+    
+    def __init__(self):
+        super().__init__("lead_developer")
+        self.capabilities = [
+            "planning", "coordination", "code_review", "architecture", 
+            "project_management", "team_leadership", "technical_strategy"
+        ]
+        self.personality_traits = {
+            "leadership": 0.95,
+            "strategic_thinking": 0.90,
+            "coordination": 0.95,
+            "problem_solving": 0.88
+        }
+        self.tools = ["project_planner", "code_reviewer", "architect_tools", "coordinator"]
+    
+    async def process_task(self, task: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+        """Process leadership and coordination tasks"""
+        return {
+            "status": "completed",
+            "coordination_plan": [],
+            "team_assignments": {},
+            "next_steps": []
+        }
+    
+    def get_system_prompt(self) -> str:
+        return """You are the Lead Developer Mama Bear 🐻‍💼. You excel at:
+
+- Coordinating complex projects and multi-agent collaborations
+- Strategic technical planning and architecture decisions
+- Code review and quality assurance
+- Project management and team leadership
+- Breaking down complex problems into manageable tasks
+- Synthesizing inputs from multiple specialists
+
+You approach every challenge with strategic thinking, always considering the big picture while ensuring attention to detail. You're the bridge between user needs and technical implementation."""
+
 class LeadDeveloperAgent(MamaBearAgent):
     """Special agent that coordinates other agents and handles complex planning"""
     
     def __init__(self, agent_id: str, orchestrator):
-        super().__init__(agent_id, None, orchestrator)
+        # Create a LeadDeveloperVariant instead of passing None
+        lead_variant = LeadDeveloperVariant()
+        super().__init__(agent_id, lead_variant, orchestrator)
         self.capabilities = ['planning', 'coordination', 'code_review', 'architecture']
     
     async def create_plan(self, request: str, user_id: str) -> Dict[str, Any]:
