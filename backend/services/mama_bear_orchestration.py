@@ -185,11 +185,19 @@ class ContextAwareness:
         # Check current quota status from model manager
         model_status = self.model_manager.get_model_status()
         
+        # Calculate remaining quota from all available models
+        api_quota_remaining = 0
+        for model_id, model_info in model_status.items():
+            # Estimate remaining quota based on daily limits
+            # Note: model_info structure has 'requests_today' not 'quota_used'
+            if 'requests_today' in model_info:
+                # Assume a reasonable daily limit if not available
+                daily_limit = 1500  # Default daily limit
+                used_today = model_info.get('requests_today', 0)
+                api_quota_remaining += max(0, daily_limit - used_today)
+        
         return {
-            'api_quota_remaining': sum(
-                model['quota_limit'] - model['quota_used'] 
-                for model in model_status['models']
-            ),
+            'api_quota_remaining': api_quota_remaining,
             'scrapybara_instances': 5,  # Max concurrent instances
             'memory_limit_mb': 1024,
             'execution_timeout': 3600  # 1 hour max execution
