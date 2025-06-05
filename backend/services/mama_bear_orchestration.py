@@ -207,10 +207,14 @@ class ContextAwareness:
                         if requests_today is None:
                             requests_today = 0
                         
-                        # Assume a reasonable daily limit if not available
+                        # Safely get daily limit and ensure it's valid
                         daily_limit = 1500  # Default daily limit
-                        remaining = max(0, daily_limit - int(requests_today))
-                        api_quota_remaining += remaining
+                        try:
+                            remaining = max(0, daily_limit - int(requests_today))
+                            api_quota_remaining += remaining
+                        except (TypeError, ValueError):
+                            # If there's any issue with conversion, use safe default
+                            api_quota_remaining += daily_limit
             
             # Ensure we have valid numbers for comparisons
             healthy_models = max(0, healthy_models) if healthy_models is not None else 0

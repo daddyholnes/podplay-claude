@@ -1,0 +1,76 @@
+
+/* Tailwind base styles are included via CDN. This file can be used for custom base styles or component layers if needed. */
+/* For example, custom font imports or very specific global resets. */
+
+/* Define CSS variables for theme properties to be easily accessible in Tailwind config or custom CSS */
+:root {
+  --sky-start: #E0F2FE;
+  --sky-end: #DBEAFE;
+  --sky-text: #1E40AF;
+  --sky-accent: #0EA5E9;
+
+  --neon-purple-start: #581C87;
+  --neon-pink-via: #9D174D;
+  --neon-blue-end: #1E3A8A;
+  --neon-text: #FFFFFF;
+  --neon-accent: #F472B6;
+  
+  --stellar-bg: #0A0A0A;
+  --stellar-text: #F3F4F6;
+  --stellar-accent-purple: #6B21A8;
+  --stellar-accent-gold: #F59E0B;
+}
+
+body {
+  font-family: 'Inter', sans-serif; /* Example: Add a nice default font */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Add a catch-all for Tailwind's @tailwind base, components, utilities if not using a build process */
+/* This is usually handled by a PostCSS setup. For CDN, ensure these are implicitly covered. */
+/* For this project, we assume Tailwind CDN handles base styles. */
+
+.typewriter-text {
+  overflow: hidden;
+  border-right: .15em solid orange; /* Cursor */
+  white-space: nowrap;
+  margin: 0 auto;
+  letter-spacing: .05em; /* Adjust as needed */
+  animation: typewriter 2s steps(30, end) 1s 1 normal both,
+             blinkTextCursor .75s steps(30, end) infinite normal;
+}
+
+.cloud {
+  font-size: 5rem; /* Adjust cloud size */
+  user-select: none;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100,100,100,0.5);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100,100,100,0.7);
+}

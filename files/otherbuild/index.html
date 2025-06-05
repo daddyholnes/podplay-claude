@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Podplay Sanctuary</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* For animations defined in AnimatedBackground.tsx */
+    @keyframes float {
+      0% { transform: translateY(0px) translateX(0px) rotate(0deg); opacity: 0.7; }
+      50% { transform: translateY(-25px) translateX(15px) rotate(3deg); opacity: 1; }
+      100% { transform: translateY(0px) translateX(0px) rotate(0deg); opacity: 0.7; }
+    }
+    .animate-float {
+      animation: float linear infinite;
+    }
+
+    @keyframes pulseNeon {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+    .animate-pulseNeon {
+      animation: pulseNeon ease-in-out infinite;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: var(--start-opacity, 0.1); transform: scale(0.95)}
+      50% { opacity: var(--end-opacity, 0.8); transform: scale(1.05)}
+    }
+    .animate-twinkle {
+      animation: twinkle ease-in-out infinite;
+      --start-opacity: 0.1; /* Default, can be overridden by style prop */
+      --end-opacity: 0.7;   /* Default, can be overridden by style prop */
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.35s ease-out forwards;
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(50px) scale(0.95); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    .animate-slideInRight {
+      animation: slideInRight 0.35s ease-out forwards;
+    }
+    
+    /* Custom scrollbar for webkit browsers */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background-color: rgba(128, 128, 128, 0.5); /* Default gray, theme might override */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(128, 128, 128, 0.7);
+    }
+    .theme-light ::-webkit-scrollbar-thumb { background-color: rgba(var(--sky-accent-rgb, 14 165 233) / 0.5); } /* Sky accent */
+    .theme-light ::-webkit-scrollbar-thumb:hover { background-color: rgba(var(--sky-accent-rgb, 14 165 233) / 0.7); }
+    .theme-purple ::-webkit-scrollbar-thumb { background-color: rgba(var(--neon-accent-rgb, 192 38 211) / 0.5); } /* Neon accent */
+    .theme-purple ::-webkit-scrollbar-thumb:hover { background-color: rgba(var(--neon-accent-rgb, 192 38 211) / 0.7); }
+    .theme-dark ::-webkit-scrollbar-thumb { background-color: rgba(var(--stellar-accent-purple-rgb, 167 139 250) / 0.5); } /* Stellar accent */
+    .theme-dark ::-webkit-scrollbar-thumb:hover { background-color: rgba(var(--stellar-accent-purple-rgb, 167 139 250) / 0.7); }
+    
+    .grabbing {
+        cursor: grabbing !important;
+    }
+
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class', // or 'media'
+      theme: {
+        extend: {
+          borderRadius: {
+            'xl': '0.75rem', // Default is 0.5rem for lg
+            '2xl': '1rem',   // Default is 0.75rem for xl
+            '3xl': '1.5rem', // Default is 1rem for 2xl
+          },
+          colors: {
+            // Sky Sanctuary (Light Theme)
+            'sky-start': '#87CEEB', // Light Sky Blue
+            'sky-end': '#ADD8E6',   // Lighter Sky Blue
+            'sky-text': '#0F172A',  // Slate 900
+            'sky-accent': '#0EA5E9', // Sky 500
+            'sky-accent-rgb': '14, 165, 233', // For scrollbar
+
+            // Neon Sanctuary (Purple Theme)
+            'neon-purple-start': '#37003C', // Deep Purple
+            'neon-pink-via': '#DB00FF', // Neon Pink/Magenta
+            'neon-blue-end': '#00F2FF', // Neon Cyan/Blue
+            'neon-text': '#F0F0F0',   // Light Gray/White
+            'neon-accent': '#D946EF', // Fuchsia 500
+            'neon-accent-rgb': '217, 70, 239', // For scrollbar
+            'silver-accent': '#C0C0C0', // Silver for borders
+
+            // Stellar Sanctuary (Dark Theme)
+            'stellar-bg': '#0C0A1D', // Very Dark Blue/Purple
+            'stellar-text': '#E0E0E0', // Light Gray
+            'stellar-accent-purple': '#A78BFA', // Violet 400
+            'stellar-accent-purple-rgb': '167, 139, 250', // For scrollbar
+            'stellar-accent-gold': '#FACC15', // Yellow 400
+          },
+          boxShadow: {
+            'neon-purple': '0 0 15px #D946EF, 0 0 25px #D946EF, 0 0 35px #D946EF',
+            'neon-red-500': '0 0 15px #EF4444, 0 0 25px #EF4444, 0 0 35px #EF4444', // For danger button
+             'soft-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Softer large shadow
+             'soft-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.07), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', // Softer XL shadow
+          }
+        }
+      }
+    }
+  </script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "uuid": "https://esm.sh/uuid@^11.1.0",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

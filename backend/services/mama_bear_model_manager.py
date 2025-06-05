@@ -74,11 +74,17 @@ class MamaBearModelManager:
     
     def _initialize_models(self) -> Dict[str, ModelConfig]:
         """Initialize all available Gemini 2.5 models with quota settings"""
+        import os
+        
+        # Get API keys from environment
+        primary_key = os.getenv('GEMINI_API_KEY_PRIMARY', 'AIzaSyDJqNc2s-L2_RW0-AwMevHRvhYgEMMXLRM')
+        fallback_key = os.getenv('GEMINI_API_KEY_FALLBACK', 'AIzaSyCNUGhuoAvvaSJ2ypsqzgtUCaLSusRZs5Y')
+        
         return {
             # Account 1 - Primary models
             "gemini-2.5-pro-primary": ModelConfig(
                 name="gemini-2.5-pro-preview-05-06",
-                api_key="AIzaSyCNUGhuoAvvaSJ2ypsqzgtUCaLSusRZs5Y",  # Your primary key
+                api_key=primary_key,
                 billing_account="primary",
                 priority=ModelPriority.PRIMARY,
                 requests_per_minute=60,
@@ -89,7 +95,7 @@ class MamaBearModelManager:
             
             "gemini-2.5-flash-04-primary": ModelConfig(
                 name="gemini-2.5-flash-preview-04-17",
-                api_key="AIzaSyCNUGhuoAvvaSJ2ypsqzgtUCaLSusRZs5Y",
+                api_key=primary_key,
                 billing_account="primary", 
                 priority=ModelPriority.SECONDARY,
                 requests_per_minute=120,  # Flash models typically have higher limits
@@ -100,7 +106,7 @@ class MamaBearModelManager:
             
             "gemini-2.5-flash-05-primary": ModelConfig(
                 name="gemini-2.5-flash-preview-05-20",
-                api_key="AIzaSyCNUGhuoAvvaSJ2ypsqzgtUCaLSusRZs5Y",
+                api_key=primary_key,
                 billing_account="primary",
                 priority=ModelPriority.SECONDARY,
                 requests_per_minute=120,
@@ -109,10 +115,10 @@ class MamaBearModelManager:
                 max_output_tokens=8192
             ),
             
-            # Account 2 - Backup models (you'll need to add your second API key)
+            # Account 2 - Backup models using fallback API key
             "gemini-2.5-pro-backup": ModelConfig(
                 name="gemini-2.5-pro-preview-05-06",
-                api_key="YOUR_SECOND_API_KEY_HERE",  # Add your second billing account key
+                api_key=fallback_key,
                 billing_account="backup",
                 priority=ModelPriority.FALLBACK,
                 requests_per_minute=60,
@@ -123,7 +129,7 @@ class MamaBearModelManager:
             
             "gemini-2.5-flash-04-backup": ModelConfig(
                 name="gemini-2.5-flash-preview-04-17",
-                api_key="YOUR_SECOND_API_KEY_HERE",
+                api_key=fallback_key,
                 billing_account="backup",
                 priority=ModelPriority.FALLBACK,
                 requests_per_minute=120,
@@ -134,7 +140,7 @@ class MamaBearModelManager:
             
             "gemini-2.5-flash-05-backup": ModelConfig(
                 name="gemini-2.5-flash-preview-05-20",
-                api_key="YOUR_SECOND_API_KEY_HERE",
+                api_key=fallback_key,
                 billing_account="backup",
                 priority=ModelPriority.FALLBACK,
                 requests_per_minute=120,

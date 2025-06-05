@@ -1,10 +1,10 @@
 import React, { useState, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LivingSanctuaryBackground, ImmersiveLoader } from '../../../shared-components/src';
 import SanctuaryNavigation from '../components/SanctuaryNavigation';
 
 // Lazy load sanctuary pages
 const MainChat = React.lazy(() => import('./MainChat'));
+const ScrapybaraHub = React.lazy(() => import('./ScrapybaraHub'));
 
 // Placeholder components for pages not yet built
 const ComingSoonPage: React.FC<{ title: string; description: string }> = ({ title, description }) => (
@@ -70,10 +70,7 @@ const SanctuaryRouter: React.FC = () => {
       case 'main-chat':
         return <MainChat />;
       case 'vm-hub':
-        return <ComingSoonPage 
-          title="Scrapybara Command Center" 
-          description="VM instance control and management coming soon!" 
-        />;
+        return <ScrapybaraHub />;
       case 'scout-bear':
         return <ComingSoonPage 
           title="Scout Mama Bear" 
@@ -120,11 +117,10 @@ const SanctuaryRouter: React.FC = () => {
   return (
     <div className="h-screen overflow-hidden relative">
       {/* Living Background */}
-      <LivingSanctuaryBackground 
-        colorScheme="sanctuary"
-        interactive={true}
-        className="fixed inset-0 z-0"
-      />
+      <div className="fixed inset-0 z-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.3),rgba(255,255,255,0.1))]"></div>
+        <div className="absolute inset-0 bg-[conic-gradient(from_0deg_at_50%_50%,rgba(120,119,198,0.1),rgba(255,255,255,0.05),rgba(120,119,198,0.1))] animate-pulse"></div>
+      </div>
       
       {/* Main Layout */}
       <div className="relative z-10 h-full flex">
@@ -173,12 +169,49 @@ const SanctuaryRouter: React.FC = () => {
           <div className="flex-1 overflow-hidden">
             <Suspense 
               fallback={
-                <ImmersiveLoader
-                  message="Loading sanctuary page..."
-                  showBearClimbing={true}
-                  showRocketLaunch={false}
-                  showHoneyParticles={true}
-                />
+                <div className="h-full flex items-center justify-center">
+                  <motion.div 
+                    className="text-center space-y-6"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <motion.div
+                      className="text-6xl"
+                      animate={{ 
+                        rotate: [0, 10, -10, 0],
+                        scale: [1, 1.1, 1] 
+                      }}
+                      transition={{ 
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    >
+                      🐻
+                    </motion.div>
+                    <h2 className="text-xl font-bold text-white">
+                      Loading sanctuary page...
+                    </h2>
+                    <div className="flex items-center justify-center space-x-2">
+                      <motion.div
+                        className="w-3 h-3 bg-purple-400 rounded-full"
+                        animate={{ opacity: [0.4, 1, 0.4] }}
+                        transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                      />
+                      <motion.div
+                        className="w-3 h-3 bg-blue-400 rounded-full"
+                        animate={{ opacity: [0.4, 1, 0.4] }}
+                        transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+                      />
+                      <motion.div
+                        className="w-3 h-3 bg-green-400 rounded-full"
+                        animate={{ opacity: [0.4, 1, 0.4] }}
+                        transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+                      />
+                    </div>
+                  </motion.div>
+                </div>
               }
             >
               <AnimatePresence mode="wait">

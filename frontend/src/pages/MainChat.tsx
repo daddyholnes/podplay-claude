@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Search, Globe, Brain, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
-import { ImmersiveLoader } from '@podplay/sanctuary-components';
 
 interface Message {
   id: string;
@@ -104,27 +103,61 @@ What would you like to explore today? I'm excited to learn alongside you! ✨`,
     };
     
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
     setIsLoading(true);
     
-    // Simulate Mama Bear response
-    setTimeout(() => {
+    try {
+      // Connect to actual Mama Bear backend
+      const response = await fetch('http://localhost:5001/api/mama-bear/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: currentInput,
+          user_id: 'sanctuary-user',
+          conversation_id: currentProject?.id || 'default'
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
       const mamaBearResponse: Message = {
         id: (Date.now() + 1).toString(),
-        content: `🐻 That's a wonderful question! Let me help you explore that. I'm gathering information and thinking through this carefully...
-        
-*[This is where Mama Bear would connect to the backend AI agents for real responses]*
-
-Would you like me to search the web for more current information on this topic? I can also help break this down into smaller, manageable pieces! 🌟`,
+        content: data.response || '🐻 I encountered an issue processing your request. Let me try again!',
         sender: 'mama-bear',
         timestamp: new Date(),
         type: 'text'
       };
       
       setMessages(prev => [...prev, mamaBearResponse]);
+      
+    } catch (error) {
+      console.error('Chat API error:', error);
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `🐻 I'm having trouble connecting to my systems right now. This might be because:
+
+• The backend is still starting up
+• There's a network connectivity issue  
+• My AI models are being updated
+
+Let me try to reconnect... In the meantime, feel free to ask me anything and I'll respond once I'm back online! ✨`,
+        sender: 'mama-bear',
+        timestamp: new Date(),
+        type: 'text'
+      };
+      
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
       setIsLoading(false);
       inputRef.current?.focus();
-    }, 2000);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -136,13 +169,49 @@ Would you like me to search the web for more current information on this topic? 
 
   if (isInitializing) {
     return (
-      <ImmersiveLoader
-        message="Preparing your research sanctuary..."
-        showBearClimbing={true}
-        showRocketLaunch={true}
-        showHoneyParticles={true}
-        onComplete={() => setIsInitializing(false)}
-      />
+      <div className="h-full flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-green-50">
+        <motion.div 
+          className="text-center space-y-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <motion.div
+            className="text-6xl"
+            animate={{ 
+              rotate: [0, 10, -10, 0],
+              scale: [1, 1.1, 1] 
+            }}
+            transition={{ 
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          >
+            🐻
+          </motion.div>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            Preparing your research sanctuary...
+          </h2>
+          <div className="flex items-center justify-center space-x-2">
+            <motion.div
+              className="w-3 h-3 bg-purple-500 rounded-full"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+            />
+            <motion.div
+              className="w-3 h-3 bg-blue-500 rounded-full"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+            />
+            <motion.div
+              className="w-3 h-3 bg-green-500 rounded-full"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+            />
+          </div>
+        </motion.div>
+      </div>
     );
   }
 
