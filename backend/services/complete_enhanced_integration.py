@@ -1,7 +1,26 @@
 # backend/services/complete_enhanced_integration.py
 """
 🐻 Complete Enhanced Integration System
-Integrates all enhanced components and replaces Redis with Mem0 for 
+Integrates all enhance    async def _initialize_enhanced_session_manager(self):
+        """Initialize the enhanced session manager with Mem0 integration"""
+        
+        logger.info("🔄 Initializing Enhanced Session Manager...")
+        
+        # Prepare config for session manager
+        session_config = {
+            "MEM0_API_KEY": os.getenv('MEM0_API_KEY', 'm0-tBwWs1ygkxcbEiVvX6iXdwiJ42epw8a3wyoEUlpg'),
+            "storage_path": "/home/woody/Documents/podplay-claude/backend/mama_bear_memory/sessions",
+            "auto_checkpoint_interval": 300,  # 5 minutes
+            "max_runtime_hours": 24
+        }
+        
+        self.session_manager = EnhancedSessionManager(config=session_config)
+        
+        # Give it a moment for any async initialization
+        await asyncio.sleep(0.1)
+        
+        self.system_health['session_management'] = True
+        logger.info("✅ Enhanced Session Manager initialized with Mem0 persistence")eplaces Redis with Mem0 for 
 Scout.new-level autonomous agent capabilities with persistent sessions
 """
 
@@ -94,19 +113,24 @@ class CompleteEnhancedIntegration:
         
         logger.info("🧠 Initializing Enhanced Memory System...")
         
-        # Get Mem0 API key from environment
-        mem0_api_key = os.getenv('MEM0_API_KEY', 'm0-tBwWs1ygkxcbEiVvX6iXdwiJ42epw8a3wyoEUlpg')
+        # Create Mem0 client
+        mem0_client = None
+        try:
+            from mem0 import MemoryClient
+            mem0_api_key = os.getenv('MEM0_API_KEY', 'm0-tBwWs1ygkxcbEiVvX6iXdwiJ42epw8a3wyoEUlpg')
+            mem0_client = MemoryClient(api_key=mem0_api_key)
+            logger.info("✅ Mem0 client initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize Mem0 client: {e}")
         
+        # Initialize enhanced memory manager
         self.memory_manager = EnhancedMemoryManager(
-            mem0_api_key=mem0_api_key,
-            storage_path="/home/woody/Documents/podplay-claude/backend/mama_bear_memory"
+            mem0_client=mem0_client,
+            local_storage_path="/home/woody/Documents/podplay-claude/backend/mama_bear_memory"
         )
         
-        # Initialize the memory system
-        await self.memory_manager.initialize()
-        
-        # Setup memory consolidation background tasks
-        await self.memory_manager.start_background_consolidation()
+        # Give it a moment to complete async initialization
+        await asyncio.sleep(0.1)
         
         self.system_health['memory_system'] = True
         logger.info("✅ Enhanced Memory System initialized with Mem0 integration")
