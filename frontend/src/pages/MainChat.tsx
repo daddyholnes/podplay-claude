@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Search, Globe, Brain, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Search, Globe, Brain } from 'lucide-react';
 
 interface Message {
   id: string;

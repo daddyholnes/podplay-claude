@@ -27,9 +27,9 @@ class ComputerUseTask:
     description: str
     task_type: str  # "browser", "desktop", "file_system", "development", etc.
     priority: int = 1
-    context: Dict[str, Any] = None
-    requirements: Dict[str, Any] = None
-    expected_output: str = None
+    context: Optional[Dict[str, Any]] = None
+    requirements: Optional[Dict[str, Any]] = None
+    expected_output: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -48,7 +48,7 @@ class EnhancedMamaBearOrchestrator:
     
     def __init__(self, 
                  mama_bear_orchestrator=None,
-                 scrapybara_config: ScrapybaraConfig = None):
+                 scrapybara_config: Optional[ScrapybaraConfig] = None):
         
         self.logger = logging.getLogger(__name__)
         
@@ -123,8 +123,8 @@ class EnhancedMamaBearOrchestrator:
     
     async def execute_autonomous_task(self, 
                                     description: str,
-                                    context: Dict[str, Any] = None,
-                                    force_handler: str = None) -> Dict[str, Any]:
+                                    context: Optional[Dict[str, Any]] = None,
+                                    force_handler: Optional[str] = None) -> Dict[str, Any]:
         """Execute autonomous task with intelligent routing"""
         
         task_id = f"task_{int(time.time())}"
@@ -146,7 +146,7 @@ class EnhancedMamaBearOrchestrator:
                 result = await self._execute_with_scrapybara(
                     task_id=task_id,
                     description=description,
-                    context=context,
+                    context=context or {},
                     instance_type=analysis.get("instance_type"),
                     analysis=analysis
                 )
@@ -156,7 +156,7 @@ class EnhancedMamaBearOrchestrator:
                 result = await self._execute_with_mama_bear(
                     task_id=task_id,
                     description=description,
-                    context=context,
+                    context=context or {},
                     analysis=analysis
                 )
             
@@ -206,9 +206,9 @@ class EnhancedMamaBearOrchestrator:
     async def _execute_with_scrapybara(self,
                                      task_id: str,
                                      description: str,
-                                     context: Dict[str, Any] = None,
-                                     instance_type: InstanceType = None,
-                                     analysis: Dict = None) -> Dict[str, Any]:
+                                     context: Optional[Dict[str, Any]] = None,
+                                     instance_type: Optional[InstanceType] = None,
+                                     analysis: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute task using Scrapybara computer use capabilities"""
         
         # Enhance description with context if available
@@ -238,8 +238,8 @@ class EnhancedMamaBearOrchestrator:
     async def _execute_with_mama_bear(self,
                                     task_id: str,
                                     description: str,
-                                    context: Dict[str, Any] = None,
-                                    analysis: Dict = None) -> Dict[str, Any]:
+                                    context: Optional[Dict[str, Any]] = None,
+                                    analysis: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute task using Mama Bear intelligence"""
         
         if not self.mama_bear:
@@ -277,7 +277,7 @@ class EnhancedMamaBearOrchestrator:
     
     async def execute_multi_step_workflow(self, 
                                         workflow_steps: List[str],
-                                        context: Dict[str, Any] = None) -> Dict[str, Any]:
+                                        context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Execute multi-step workflow with intelligent step routing"""
         
         workflow_id = f"workflow_{int(time.time())}"
@@ -322,8 +322,8 @@ class EnhancedMamaBearOrchestrator:
     
     async def create_computer_use_session(self, 
                                         session_name: str,
-                                        instance_type: InstanceType = None,
-                                        timeout_hours: int = None) -> Dict[str, Any]:
+                                        instance_type: Optional[InstanceType] = None,
+                                        timeout_hours: Optional[int] = None) -> Dict[str, Any]:
         """Create a persistent computer use session"""
         
         instance = await self.scrapybara.manager.create_instance(
@@ -430,7 +430,7 @@ AUTONOMOUS_WORKFLOWS = {
 
 async def execute_predefined_workflow(orchestrator: EnhancedMamaBearOrchestrator,
                                     workflow_name: str,
-                                    context: Dict[str, Any] = None) -> Dict[str, Any]:
+                                    context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Execute a predefined autonomous workflow"""
     
     if workflow_name not in AUTONOMOUS_WORKFLOWS:

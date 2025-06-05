@@ -11,10 +11,7 @@ import {
   Cpu,
   HardDrive,
   Wifi,
-  Clock,
-  Activity,
-  ChevronRight,
-  Plus
+  Clock
 } from 'lucide-react';
 
 interface ScrapybaraInstance {
@@ -43,7 +40,6 @@ const ScrapybaraHub: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [metrics, setMetrics] = useState<Record<string, InstanceMetrics>>({});
   const [terminalVisible, setTerminalVisible] = useState(false);
-  const [browserPreview, setBrowserPreview] = useState<string>('');
 
   // Mock data for development
   useEffect(() => {

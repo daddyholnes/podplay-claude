@@ -15,7 +15,7 @@ import time
 from contextlib import asynccontextmanager
 
 try:
-    from scrapybara import Scrapybara, ScrapybaraClient
+    from scrapybara import Scrapybara
     from scrapybara.tools import BashTool, ComputerTool, EditTool
     from scrapybara.openai import OpenAI, UBUNTU_SYSTEM_PROMPT as OPENAI_UBUNTU_PROMPT
     from scrapybara.anthropic import Anthropic, UBUNTU_SYSTEM_PROMPT as ANTHROPIC_UBUNTU_PROMPT
@@ -23,7 +23,7 @@ try:
 except ImportError:
     # Fallback for when Scrapybara SDK is not installed
     SCRAPYBARA_AVAILABLE = False
-    BashTool = ComputerTool = EditTool = None
+    Scrapybara = BashTool = ComputerTool = EditTool = None
     OpenAI = Anthropic = None
     OPENAI_UBUNTU_PROMPT = ANTHROPIC_UBUNTU_PROMPT = ""
 
@@ -88,13 +88,13 @@ class GeminiScrapybaraAdapter:
         self.api_key = api_key or os.getenv('GOOGLE_API_KEY')
         self.model_name = model_name
         
-        if self.api_key:
+        if self.api_key and genai:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(model_name)
         else:
             raise ValueError("Gemini API key required")
     
-    async def generate_response(self, messages: List[Dict], tools: List[Any] = None) -> Dict:
+    async def generate_response(self, messages: List[Dict], tools: Optional[List[Any]] = None) -> Dict:
         """Generate response compatible with Scrapybara Act SDK format"""
         try:
             # Convert messages to Gemini format
@@ -162,7 +162,7 @@ class ScrapybaraManager:
         self.logger = logging.getLogger(__name__)
         
         # Initialize Scrapybara client
-        if SCRAPYBARA_AVAILABLE:
+        if SCRAPYBARA_AVAILABLE and Scrapybara:
             self.client = Scrapybara(api_key=config.api_key)
         else:
             self.client = None
@@ -224,9 +224,9 @@ class ScrapybaraManager:
     
     async def create_instance(
         self,
-        instance_type: InstanceType = None,
-        timeout_hours: int = None,
-        instance_id: str = None
+        instance_type: Optional[InstanceType] = None,
+        timeout_hours: Optional[int] = None,
+        instance_id: Optional[str] = None
     ) -> Optional[ScrapybaraInstance]:
         """Create a new Scrapybara instance"""
         if not SCRAPYBARA_AVAILABLE:
@@ -246,27 +246,44 @@ class ScrapybaraManager:
         instance_id = instance_id or f"{instance_type.value}_{int(time.time())}"
         
         try:
+            # Check if client is available
+            if not self.client:
+                raise RuntimeError("Scrapybara client not available")
+                
             # Create instance based on type
             if instance_type == InstanceType.UBUNTU:
-                scrapybara_instance = self.client.start_ubuntu(timeout_hours=timeout_hours)
+                scrapybara_instance = self.client.start_ubuntu(timeout_hours=timeout_hours or self.config.default_timeout_hours)
             elif instance_type == InstanceType.BROWSER:
-                scrapybara_instance = self.client.start_browser(timeout_hours=timeout_hours)
+                scrapybara_instance = self.client.start_browser(timeout_hours=timeout_hours or self.config.default_timeout_hours)
             elif instance_type == InstanceType.WINDOWS:
-                scrapybara_instance = self.client.start_windows(timeout_hours=timeout_hours)
+                scrapybara_instance = self.client.start_windows(timeout_hours=timeout_hours or self.config.default_timeout_hours)
             else:
                 raise ValueError(f"Unsupported instance type: {instance_type}")
             
-            # Create tools for the instance
-            tools = [
-                BashTool(scrapybara_instance),
-                ComputerTool(scrapybara_instance),
-                EditTool(scrapybara_instance)
-            ]
+            # Create tools for the instance (only if tools are available)
+            tools = []
+            if BashTool and ComputerTool and EditTool:
+                try:
+                    # Only add tools that are compatible with the instance type
+                    if instance_type == InstanceType.UBUNTU:
+                        tools = [
+                            BashTool(scrapybara_instance),
+                            ComputerTool(scrapybara_instance),
+                            EditTool(scrapybara_instance)
+                        ]
+                    else:
+                        # For browser and windows instances, only add ComputerTool if compatible
+                        tools = [ComputerTool(scrapybara_instance)]
+                except Exception as e:
+                    self.logger.warning(f"Failed to create tools for instance: {e}")
+                    tools = []
             
             # Initialize browser if needed
             if instance_type in [InstanceType.BROWSER, InstanceType.UBUNTU] and self.config.enable_browser_auth:
                 try:
-                    scrapybara_instance.browser.start()
+                    # Check if browser attribute exists before accessing
+                    if hasattr(scrapybara_instance, 'browser') and scrapybara_instance.browser:
+                        scrapybara_instance.browser.start()
                 except Exception as e:
                     self.logger.warning(f"Failed to initialize browser: {e}")
             
@@ -330,15 +347,15 @@ class ScrapybaraManager:
             if config and config.enabled:
                 try:
                     if provider == ModelProvider.SCRAPYBARA_CREDITS:
-                        if SCRAPYBARA_AVAILABLE:
+                        if SCRAPYBARA_AVAILABLE and OpenAI:
                             return OpenAI()  # Default Scrapybara model with credits
                     elif provider == ModelProvider.GEMINI:
                         return self.gemini_adapter
                     elif provider == ModelProvider.ANTHROPIC:
-                        if SCRAPYBARA_AVAILABLE:
+                        if SCRAPYBARA_AVAILABLE and Anthropic:
                             return Anthropic(api_key=config.api_key)
                     elif provider == ModelProvider.OPENAI:
-                        if SCRAPYBARA_AVAILABLE:
+                        if SCRAPYBARA_AVAILABLE and OpenAI:
                             return OpenAI(api_key=config.api_key)
                 except Exception as e:
                     self.logger.warning(f"Failed to initialize {provider.value} model: {e}")
@@ -347,7 +364,7 @@ class ScrapybaraManager:
         self.logger.error("No available models in fallback chain")
         return None
     
-    def get_system_prompt(self, instance_type: InstanceType = None) -> str:
+    def get_system_prompt(self, instance_type: Optional[InstanceType] = None) -> str:
         """Get appropriate system prompt for instance type"""
         instance_type = instance_type or self.config.default_instance_type
         
@@ -363,10 +380,10 @@ class ScrapybaraManager:
     async def execute_computer_task(
         self,
         task: str,
-        instance_id: str = None,
-        instance_type: InstanceType = None,
-        timeout_hours: int = None,
-        on_step: Callable = None,
+        instance_id: Optional[str] = None,
+        instance_type: Optional[InstanceType] = None,
+        timeout_hours: Optional[int] = None,
+        on_step: Optional[Callable] = None,
         schema: Any = None
     ) -> Dict[str, Any]:
         """Execute a computer use task with automatic instance management"""
@@ -411,6 +428,9 @@ class ScrapybaraManager:
                 }
             
             else:  # Standard Scrapybara models
+                if not self.client:
+                    raise RuntimeError("Scrapybara client not available")
+                    
                 response = self.client.act(
                     model=model,
                     tools=instance.tools,
@@ -463,7 +483,7 @@ class ScrapybaraManager:
             self.logger.error(f"Failed to load auth state: {e}")
             return False
     
-    def get_instance_status(self, instance_id: str = None) -> Dict[str, Any]:
+    def get_instance_status(self, instance_id: Optional[str] = None) -> Dict[str, Any]:
         """Get status of instances"""
         if instance_id:
             instance = self.instances.get(instance_id)
@@ -498,7 +518,7 @@ class ScrapybaraManager:
 class ScrapybaraOrchestrator:
     """Orchestrates Scrapybara computer use agents with Mama Bear system"""
     
-    def __init__(self, config: ScrapybaraConfig = None):
+    def __init__(self, config: Optional[ScrapybaraConfig] = None):
         self.config = config or ScrapybaraConfig()
         self.manager = ScrapybaraManager(self.config)
         self.logger = logging.getLogger(__name__)
@@ -510,8 +530,8 @@ class ScrapybaraOrchestrator:
     async def execute_autonomous_workflow(
         self,
         workflow_description: str,
-        context: Dict[str, Any] = None,
-        instance_preferences: Dict[str, Any] = None
+        context: Optional[Dict[str, Any]] = None,
+        instance_preferences: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute autonomous workflow with Scout.new-level capabilities"""
         
@@ -582,7 +602,7 @@ class ScrapybaraOrchestrator:
                 "error": str(e)
             }
     
-    def _determine_instance_type(self, description: str, preferences: Dict = None) -> InstanceType:
+    def _determine_instance_type(self, description: str, preferences: Optional[Dict] = None) -> InstanceType:
         """Determine optimal instance type based on task description"""
         description_lower = description.lower()
         
@@ -633,10 +653,10 @@ class ScrapybaraOrchestrator:
 
 # Factory function for easy integration
 def create_scrapybara_orchestrator(
-    api_key: str = None,
-    gemini_api_key: str = None,
-    anthropic_api_key: str = None,
-    openai_api_key: str = None,
+    api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    anthropic_api_key: Optional[str] = None,
+    openai_api_key: Optional[str] = None,
     max_instances: int = 5
 ) -> ScrapybaraOrchestrator:
     """Create a Scrapybara orchestrator with specified configuration"""

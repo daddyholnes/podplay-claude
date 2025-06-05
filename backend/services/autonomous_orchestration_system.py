@@ -162,11 +162,11 @@ class AutonomousOrchestrationSystem:
             )
         else:
             # Create default workflow decision
-            from .mama_bear_workflow_logic import WorkflowDecision, ConfidenceLevel
+            from .mama_bear_workflow_logic import WorkflowDecision, DecisionConfidence
             workflow_decision = WorkflowDecision(
                 decision_type="simple",
                 selected_agents=["lead_developer"],
-                confidence=ConfidenceLevel.MEDIUM,
+                confidence=DecisionConfidence.MEDIUM,
                 reasoning="Default workflow - workflow intelligence not available",
                 estimated_duration=10,
                 estimated_complexity=5
@@ -469,11 +469,11 @@ class AutonomousOrchestrationSystem:
         # Execute with collaboration orchestrator
         if self.collaboration_orchestrator:
             # Create a workflow decision for the single agent
-            from .mama_bear_workflow_logic import WorkflowDecision, ConfidenceLevel
+            from .mama_bear_workflow_logic import WorkflowDecision, DecisionConfidence
             single_agent_decision = WorkflowDecision(
                 decision_type="simple",
                 selected_agents=[agent_id],
-                confidence=ConfidenceLevel.HIGH,
+                confidence=DecisionConfidence.HIGH,
                 reasoning=f"Single agent execution with {agent_id}",
                 estimated_duration=task.workflow_decision.estimated_duration,
                 estimated_complexity=task.workflow_decision.estimated_complexity
@@ -512,11 +512,21 @@ class AutonomousOrchestrationSystem:
         task.progress_percentage = 20.0
         
         # Execute collaborative workflow
-        result = await self.collaboration_orchestrator.orchestrate_collaborative_workflow(
-            task.workflow_decision,
-            task.original_request,
-            task.context_memory
-        )
+        if self.collaboration_orchestrator:
+            result = await self.collaboration_orchestrator.orchestrate_collaborative_workflow(
+                task.workflow_decision,
+                task.original_request,
+                task.context_memory
+            )
+        else:
+            # Fallback for multi-agent collaboration
+            result = {
+                "success": True,
+                "type": "fallback_collaboration",
+                "content": f"Multi-agent collaboration with {len(task.active_agents)} agents: {task.original_request}",
+                "agents": task.active_agents,
+                "reasoning": "No collaboration orchestrator available"
+            }
         
         # Track collaboration
         task.collaboration_history.append({

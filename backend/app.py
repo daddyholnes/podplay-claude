@@ -7,6 +7,7 @@ Neurodivergent-friendly development sanctuary with 7 Mama Bear variants,
 import os
 import logging
 import asyncio
+import traceback
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -46,7 +47,7 @@ try:
     from services.complete_enhanced_integration import integrate_complete_enhanced_system_with_app, CompleteEnhancedIntegration
     from services.mama_bear_model_manager import MamaBearModelManager
     from services.enhanced_scrapybara_integration import EnhancedScrapybaraManager
-    from api.enhanced_orchestration_api import integrate_enhanced_orchestration_with_app
+    from api.enhanced_orchestration_api_fixed import init_enhanced_orchestration_api as integrate_enhanced_orchestration_with_app
     ENHANCED_SYSTEM_AVAILABLE = True
     logger.info("✅ Complete Enhanced System with Mem0 integration available")
 except ImportError as e:

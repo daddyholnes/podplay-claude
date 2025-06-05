@@ -75,7 +75,7 @@ class CollaborativeWorkspaceAPI:
     async def _broadcast_to_workspace(self, workspace_id: str, event: str, data: Dict):
         """Broadcast event to all users in a workspace"""
         room = f"workspace_{workspace_id}"
-        self.socketio.emit(event, data, room=room)
+        self.socketio.emit(event, data, to=room)
     
     # REST API Methods
     
@@ -391,7 +391,7 @@ class CollaborativeWorkspaceAPI:
                 'user_id': user_id,
                 'timestamp': datetime.now().isoformat(),
                 'data': data.get('activity_data', {})
-            }, room=room)
+            }, to=room)
     
     def handle_share_screen(self, data: Dict):
         """Handle screen sharing in workspace"""
@@ -404,7 +404,7 @@ class CollaborativeWorkspaceAPI:
                 'workspace_id': workspace_id,
                 'user_id': user_id,
                 'timestamp': datetime.now().isoformat()
-            }, room=room)
+            }, to=room)
     
     def handle_cursor_update(self, data: Dict):
         """Handle cursor position updates for collaborative editing"""
@@ -419,7 +419,7 @@ class CollaborativeWorkspaceAPI:
                 'user_id': user_id,
                 'cursor_position': cursor_position,
                 'timestamp': datetime.now().isoformat()
-            }, room=room, include_self=False)
+            }, to=room, include_self=False)
 
 
 # Initialize API handler (will be set when app starts)
@@ -431,6 +431,9 @@ collaborative_api = None
 @collaborative_bp.route('/api/workspaces', methods=['POST'])
 async def create_workspace():
     """Create a new collaborative workspace"""
+    if collaborative_api is None:
+        logger.error("Collaborative API not initialized")
+        return jsonify({'success': False, 'error': 'Service not available. API not initialized.'}), 503
     try:
         data = request.json
         if not data:
@@ -454,6 +457,9 @@ async def create_workspace():
 @collaborative_bp.route('/api/workspaces/<workspace_id>', methods=['GET'])
 async def get_workspace(workspace_id: str):
     """Get workspace details"""
+    if collaborative_api is None:
+        logger.error("Collaborative API not initialized")
+        return jsonify({'success': False, 'error': 'Service not available. API not initialized.'}), 503
     try:
         user_id = request.args.get('user_id')
         if not user_id:
@@ -477,6 +483,9 @@ async def get_workspace(workspace_id: str):
 @collaborative_bp.route('/api/workspaces/<workspace_id>/join', methods=['POST'])
 async def join_workspace(workspace_id: str):
     """Join a workspace"""
+    if collaborative_api is None:
+        logger.error("Collaborative API not initialized")
+        return jsonify({'success': False, 'error': 'Service not available. API not initialized.'}), 503
     try:
         data = request.json
         if not data:
@@ -512,6 +521,9 @@ async def join_workspace(workspace_id: str):
 @collaborative_bp.route('/api/workspaces/<workspace_id>/resources', methods=['POST'])
 async def share_resource(workspace_id: str):
     """Share a resource in the workspace"""
+    if collaborative_api is None:
+        logger.error("Collaborative API not initialized")
+        return jsonify({'success': False, 'error': 'Service not available. API not initialized.'}), 503
     try:
         data = request.json
         if not data:
@@ -536,6 +548,9 @@ async def share_resource(workspace_id: str):
 @collaborative_bp.route('/api/users/<user_id>/workspaces', methods=['GET'])
 async def get_user_workspaces(user_id: str):
     """Get all workspaces for a user"""
+    if collaborative_api is None:
+        logger.error("Collaborative API not initialized")
+        return jsonify({'success': False, 'error': 'Service not available. API not initialized.'}), 503
     try:
         result = await collaborative_api.get_user_workspaces(user_id)
         return jsonify(result), 200
@@ -551,6 +566,9 @@ async def get_user_workspaces(user_id: str):
 @collaborative_bp.route('/api/workspaces/<workspace_id>/sessions', methods=['POST'])
 async def start_session(workspace_id: str):
     """Start a new session in a workspace"""
+    if collaborative_api is None:
+        logger.error("Collaborative API not initialized")
+        return jsonify({'success': False, 'error': 'Service not available. API not initialized.'}), 503
     try:
         data = request.json
         if not data:
@@ -586,34 +604,52 @@ def register_websocket_handlers(socketio: SocketIO):
     @socketio.on('join_workspace')
     def handle_join_workspace(data):
         """Handle joining workspace room"""
-        session_id = request.sid
+        from flask import session
+        session_id = session.get('sid', 'anonymous')
+        if collaborative_api is None:
+            emit('error', {'message': 'Collaborative API not initialized'})
+            return
         collaborative_api.handle_join_workspace_room(data, session_id)
     
     @socketio.on('leave_workspace')
     def handle_leave_workspace(data):
         """Handle leaving workspace room"""
-        session_id = request.sid
+        from flask import session
+        session_id = session.get('sid', 'anonymous')
+        if collaborative_api is None:
+            emit('error', {'message': 'Collaborative API not initialized'})
+            return
         collaborative_api.handle_leave_workspace_room(data, session_id)
     
     @socketio.on('workspace_activity')
     def handle_activity(data):
         """Handle workspace activity"""
+        if collaborative_api is None:
+            emit('error', {'message': 'Collaborative API not initialized'})
+            return
         collaborative_api.handle_workspace_activity(data)
     
     @socketio.on('share_screen')
     def handle_screen_share(data):
         """Handle screen sharing"""
+        if collaborative_api is None:
+            emit('error', {'message': 'Collaborative API not initialized'})
+            return
         collaborative_api.handle_share_screen(data)
     
     @socketio.on('cursor_update')
     def handle_cursor(data):
         """Handle cursor updates"""
+        if collaborative_api is None:
+            emit('error', {'message': 'Collaborative API not initialized'})
+            return
         collaborative_api.handle_cursor_update(data)
     
     @socketio.on('disconnect')
     def handle_disconnect():
         """Handle user disconnect"""
-        session_id = request.sid
+        from flask import session
+        session_id = session.get('sid', 'anonymous')
         logger.info(f"User disconnected: {session_id}")
 
 

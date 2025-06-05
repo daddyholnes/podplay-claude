@@ -18,7 +18,22 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Any
 
 # Add backend to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+# Get the absolute path to the directory containing this script (master-test-suite)
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the absolute path to the project root (one level up from master-test-suite)
+project_root = os.path.dirname(current_script_dir)
+# Get the absolute path to the backend directory
+backend_dir = os.path.join(project_root, 'backend')
+
+# Add the backend directory to the Python path
+# This allows imports like `from config...` and `from services...`
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
+# It can also be useful to add the project root itself,
+# if there are any top-level modules in the project root that might be imported.
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 try:
     from config.settings import Config

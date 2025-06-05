@@ -63,6 +63,15 @@ class ScrapybaraIntegrationTest:
         """Test system capabilities and status"""
         logger.info("Testing system capabilities...")
         
+        if not self.orchestrator:
+            logger.error("Orchestrator not initialized")
+            self.test_results.append({
+                "test": "system_capabilities",
+                "success": False,
+                "error": "Orchestrator not initialized"
+            })
+            return
+        
         try:
             status = self.orchestrator.get_system_status()
             
@@ -89,6 +98,15 @@ class ScrapybaraIntegrationTest:
     async def test_task_routing(self):
         """Test intelligent task routing"""
         logger.info("Testing task routing...")
+        
+        if not self.orchestrator:
+            logger.error("Orchestrator not initialized")
+            self.test_results.append({
+                "test": "task_routing",
+                "success": False,
+                "error": "Orchestrator not initialized"
+            })
+            return
         
         test_tasks = [
             {
