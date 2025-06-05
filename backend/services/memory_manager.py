@@ -475,6 +475,30 @@ class MemoryManager:
         
         return self.user_sessions[user_id]['session_id']
     
+    async def save_context(self, key: str, value: Any, user_id: str = "system") -> str:
+        """Save context data for orchestration system compatibility"""
+        try:
+            context_data = {
+                'context_key': key,
+                'context_value': value,
+                'timestamp': datetime.now().isoformat(),
+                'source': 'orchestration'
+            }
+            
+            # Store as project context if it's system-level
+            if user_id == "system":
+                return await self.store_project_context(
+                    user_id="system_orchestration",
+                    project_data=context_data
+                )
+            else:
+                # Store as user-specific sanctuary state
+                return await self.store_sanctuary_state(user_id, context_data)
+                
+        except Exception as e:
+            logger.error(f"Error saving context {key}: {e}")
+            return ""
+    
     async def cleanup_old_sessions(self, hours: int = 24):
         """Clean up old inactive sessions"""
         cutoff_time = datetime.now() - timedelta(hours=hours)

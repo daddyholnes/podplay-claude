@@ -18,10 +18,10 @@ orchestration_bp = Blueprint('orchestration', __name__)
 
 def get_orchestrator():
     """Safely get orchestrator from app context"""
-    return getattr(current_app, 'mama_bear_orchestrator', None)
+    return current_app.config.get('MAMA_BEAR_ORCHESTRATOR')
 
 @orchestration_bp.route('/api/mama-bear/chat', methods=['POST'])
-async def intelligent_chat():
+def intelligent_chat():
     """
     🐻 Main chat endpoint with intelligent agent routing
     Automatically determines which agents to involve based on the request
@@ -40,12 +40,12 @@ async def intelligent_chat():
                 'error': 'Orchestrator not available'
             }), 500
         
-        # Process the request with intelligent routing
-        result = await orchestrator.process_user_request(
+        # Process the request with intelligent routing (run async in sync context)
+        result = asyncio.run(orchestrator.process_user_request(
             message=message,
             user_id=user_id,
             page_context=page_context
-        )
+        ))
         
         return jsonify({
             'success': True,
@@ -62,7 +62,7 @@ async def intelligent_chat():
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/agents/status', methods=['GET'])
-async def get_agents_status():
+def get_agents_status():
     """Get status of all agents"""
     try:
         orchestrator = get_orchestrator()
@@ -72,7 +72,7 @@ async def get_agents_status():
                 'error': 'Orchestrator not available'
             }), 500
             
-        status = await orchestrator.get_system_status()
+        status = asyncio.run(orchestrator.get_system_status())
         
         return jsonify({
             'success': True,
@@ -87,7 +87,7 @@ async def get_agents_status():
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/agents/<agent_id>/direct', methods=['POST'])
-async def direct_agent_communication(agent_id):
+def direct_agent_communication(agent_id):
     """Communicate directly with a specific agent"""
     try:
         data = request.json or {}
@@ -110,7 +110,7 @@ async def direct_agent_communication(agent_id):
             }), 404
         
         # Direct communication with agent
-        result = await agent.handle_request(message, user_id)
+        result = asyncio.run(agent.handle_request(message, user_id))
         
         return jsonify({
             'success': True,
@@ -126,7 +126,7 @@ async def direct_agent_communication(agent_id):
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/workflow/analyze', methods=['POST'])
-async def analyze_workflow():
+def analyze_workflow():
     """Analyze a request and suggest workflow approach"""
     try:
         data = request.json or {}
@@ -148,7 +148,7 @@ async def analyze_workflow():
             }), 500
         
         # Analyze the workflow
-        analysis = await workflow_intelligence.analyze_request(request_text, user_id)
+        analysis = asyncio.run(workflow_intelligence.analyze_request(request_text, user_id))
         
         return jsonify({
             'success': True,
@@ -170,7 +170,7 @@ async def analyze_workflow():
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/memory/search', methods=['POST'])
-async def search_memory():
+def search_memory():
     """Search user memories"""
     try:
         data = request.json or {}
@@ -193,7 +193,7 @@ async def search_memory():
             }), 500
         
         # Search memories
-        memories = await memory_manager.search_memories(query, user_id, limit)
+        memories = asyncio.run(memory_manager.search_memories(query, user_id, limit))
         
         # Convert memories to serializable format
         memory_data = []
@@ -222,7 +222,7 @@ async def search_memory():
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/context', methods=['GET'])
-async def get_global_context():
+def get_global_context():
     """Get current global context"""
     try:
         orchestrator = get_orchestrator()
@@ -248,7 +248,7 @@ async def get_global_context():
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/context', methods=['POST'])
-async def update_global_context():
+def update_global_context():
     """Update global context"""
     try:
         data = request.json or {}
@@ -270,7 +270,7 @@ async def update_global_context():
             
         context_awareness = getattr(orchestrator, 'context_awareness', None)
         if context_awareness and hasattr(context_awareness, 'update_global_context'):
-            await context_awareness.update_global_context(key, value)
+            asyncio.run(context_awareness.update_global_context(key, value))
         
         return jsonify({
             'success': True,
@@ -285,7 +285,7 @@ async def update_global_context():
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/user/profile', methods=['GET'])
-async def get_user_profile():
+def get_user_profile():
     """Get user profile and preferences"""
     try:
         user_id = request.args.get('user_id', 'default_user')
@@ -305,10 +305,10 @@ async def get_user_profile():
             }), 500
         
         # Get user profile
-        profile = await memory_manager.get_user_profile(user_id)
+        profile = asyncio.run(memory_manager.get_user_profile(user_id))
         
         # Get decision patterns
-        patterns = await memory_manager.analyze_decision_patterns(user_id)
+        patterns = asyncio.run(memory_manager.analyze_decision_patterns(user_id))
         
         return jsonify({
             'success': True,
@@ -332,7 +332,7 @@ async def get_user_profile():
         }), 500
 
 @orchestration_bp.route('/api/mama-bear/system/stats', methods=['GET'])
-async def get_system_stats():
+def get_system_stats():
     """Get comprehensive system statistics"""
     try:
         orchestrator = get_orchestrator()
@@ -344,7 +344,7 @@ async def get_system_stats():
         
         # Get memory stats
         memory_manager = getattr(orchestrator, 'memory_manager', None)
-        memory_stats = await memory_manager.get_memory_stats() if memory_manager else {}
+        memory_stats = asyncio.run(memory_manager.get_memory_stats()) if memory_manager else {}
         
         # Get agent stats
         agent_stats = {}

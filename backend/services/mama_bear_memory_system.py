@@ -233,6 +233,35 @@ class EnhancedMemoryManager:
         
         self.agent_contexts[agent_id][user_id] = context_data
     
+    async def save_context(self, key: str, value: Any, user_id: str = "system") -> str:
+        """Save context data for orchestration system compatibility"""
+        try:
+            context_data = {
+                'context_key': key,
+                'context_value': value,
+                'timestamp': datetime.now().isoformat(),
+                'source': 'orchestration'
+            }
+            
+            # Create memory record for enhanced memory system
+            memory_id = self._generate_memory_id(user_id, 'context')
+            
+            memory_record = MemoryRecord(
+                id=memory_id,
+                type=MemoryType.AGENT_CONTEXT,
+                content=context_data,
+                user_id=user_id,
+                importance=MemoryImportance.MEDIUM,
+                tags=['orchestration', 'context', key]
+            )
+            
+            await self._store_memory(memory_record)
+            return memory_id
+            
+        except Exception as e:
+            logger.error(f"Error saving context {key}: {e}")
+            return ""
+    
     async def get_user_patterns(self, user_id: str) -> Dict[str, Any]:
         """Get learned patterns for a user"""
         

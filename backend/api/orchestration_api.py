@@ -10,10 +10,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Blueprint for REST endpoints
-orchestration_bp = Blueprint('orchestration', __name__)
+# Blueprint for legacy REST endpoints  
+legacy_orchestration_bp = Blueprint('legacy_orchestration', __name__)
 
-@orchestration_bp.route('/api/mama-bear/orchestration/chat', methods=['POST'])
+@legacy_orchestration_bp.route('/api/mama-bear/orchestration/chat', methods=['POST'])
 def enhanced_chat():
     """
     🐻 Enhanced chat endpoint with intelligent agent routing
@@ -53,7 +53,7 @@ def enhanced_chat():
             'timestamp': datetime.now().isoformat()
         }), 500
 
-@orchestration_bp.route('/api/mama-bear/orchestration/status', methods=['GET'])
+@legacy_orchestration_bp.route('/api/mama-bear/orchestration/status', methods=['GET'])
 def orchestration_status():
     """Get the current orchestration system status"""
     try:
@@ -86,7 +86,7 @@ def orchestration_status():
             'timestamp': datetime.now().isoformat()
         }), 500
 
-@orchestration_bp.route('/api/mama-bear/orchestration/agents', methods=['GET'])
+@legacy_orchestration_bp.route('/api/mama-bear/orchestration/agents', methods=['GET'])
 def list_agents():
     """List all available agents in the orchestration system"""
     try:
@@ -129,6 +129,6 @@ def integrate_orchestration_with_app(app, socketio):
     """Integrate orchestration API with Flask app"""
     
     # Register blueprint
-    app.register_blueprint(orchestration_bp)
+    app.register_blueprint(legacy_orchestration_bp)
     
     logger.info("🐻 Mama Bear Orchestration API integrated successfully")

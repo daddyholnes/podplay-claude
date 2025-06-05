@@ -528,3 +528,33 @@ class EnhancedMamaBearAgent:
             'active_variants': list(self.variants.keys()),
             'timestamp': datetime.now().isoformat()
         }
+    
+    async def get_response(self, prompt: str, mama_bear_variant: str = 'research_specialist', required_capabilities: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
+        """
+        Orchestration-compatible response method
+        Maps to the existing process_message method for compatibility
+        """
+        try:
+            # Convert orchestration parameters to process_message format
+            result = await self.process_message(
+                message=prompt,
+                page_context=kwargs.get('page_context', 'orchestration'),
+                user_id=kwargs.get('user_id', 'system'),
+                variant_preference=mama_bear_variant,
+                **kwargs
+            )
+            
+            return {
+                'success': True,
+                'content': result['content'],
+                'model_used': result.get('model', 'unknown'),
+                'variant_used': result.get('variant', mama_bear_variant)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in get_response: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'content': f"🐻 I encountered an issue: {str(e)}"
+            }

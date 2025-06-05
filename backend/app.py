@@ -29,6 +29,7 @@ logger = logging.getLogger("PodplaySanctuary")
 
 # Import our sanctuary services
 from config.settings import get_settings
+from api.mama_bear_orchestration_api import integrate_orchestration_with_app
 from services import (
     initialize_all_services, 
     shutdown_all_services,
@@ -80,12 +81,17 @@ settings = get_settings()
 app.config['SECRET_KEY'] = settings.flask_secret_key
 CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5001"])
 
+# Register blueprints
+# NOTE: Orchestration blueprint registered via integrate_orchestration_with_app()
+
 # Initialize SocketIO
 socketio = SocketIO(
     app, 
     cors_allowed_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5001"],
     async_mode='threading'
 )
+
+# NOTE: Orchestration blueprint registered conditionally in initialize_services()
 
 # Initialize logging
 logging.basicConfig(
@@ -159,7 +165,7 @@ async def initialize_sanctuary_services():
             if AgentOrchestrator:
                 mama_bear_orchestrator = AgentOrchestrator(
                     memory_manager=enhanced_memory or get_memory_manager(),
-                    model_manager=get_mama_bear_agent(),
+                    model_manager=await get_mama_bear_agent(),
                     scrapybara_client=enhanced_scrapybara or get_scrapybara_manager()
                 )
                 
@@ -169,12 +175,11 @@ async def initialize_sanctuary_services():
             app.config['MAMA_BEAR_ORCHESTRATOR'] = mama_bear_orchestrator
             
             # Initialize enhanced API endpoints
-            try:
-                from api.orchestration_api import orchestration_bp
-                app.register_blueprint(orchestration_bp)
+            if API_INTEGRATION_AVAILABLE and integrate_orchestration_with_app:
+                integrate_orchestration_with_app(app, socketio)
                 logger.info("✅ Enhanced orchestration API endpoints registered")
-            except ImportError as e:
-                logger.warning(f"Enhanced API endpoints not available: {e}")
+            else:
+                logger.warning("Enhanced API integration not available")
             
             logger.info("✅ Enhanced Mama Bear Orchestration initialized")
         
@@ -204,44 +209,7 @@ def get_service_instances():
 # ==============================================================================
 # MAMA BEAR ENDPOINTS
 # ==============================================================================
-
-@app.route('/api/mama-bear/chat', methods=['POST'])
-async def mama_bear_chat():
-    """Main chat endpoint for all Mama Bear variants"""
-    try:
-        services = get_service_instances()
-        mama_bear = services['mama_bear']
-        
-        data = request.json or {}
-        
-        # Extract request data
-        message = data.get('message', '')
-        page_context = data.get('page_context', 'main_chat')
-        user_id = data.get('user_id', 'nathan_sanctuary')
-        attachments = data.get('attachments', [])
-        
-        # Process with appropriate Mama Bear variant
-        response = await mama_bear.process_message(
-            message=message,
-            page_context=page_context,
-            user_id=user_id,
-            attachments=attachments
-        )
-        
-        return jsonify({
-            'success': True,
-            'response': response['content'],
-            'variant_used': response['variant'],
-            'model_used': response['model'],
-            'timestamp': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in mama_bear_chat: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+# NOTE: Main chat endpoint moved to orchestration_bp blueprint
 
 @app.route('/api/mama-bear/status', methods=['GET'])
 def mama_bear_status():

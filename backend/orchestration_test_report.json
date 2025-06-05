@@ -1,0 +1,59 @@
+{
+  "test_run_id": "test-session-1749081561",
+  "timestamp": "2025-06-05T00:59:22.565022",
+  "total_tests": 7,
+  "passed_tests": 7,
+  "failed_tests": 0,
+  "success_rate": 100.0,
+  "test_results": [
+    {
+      "test_name": "Orchestration Status Endpoint",
+      "passed": true,
+      "details": "8 agents active: research_specialist, devops_specialist, scout_commander, model_coordinator, tool_curator, integration_architect, live_api_specialist, lead_developer",
+      "timestamp": "2025-06-05T00:59:21.540482",
+      "response_data": null
+    },
+    {
+      "test_name": "Basic Chat Functionality",
+      "passed": true,
+      "details": "Response: \ud83d\udc3b Enhanced Mama Bear processing: Hello, Mama Bear! This is a test message....",
+      "timestamp": "2025-06-05T00:59:21.543993",
+      "response_data": null
+    },
+    {
+      "test_name": "DevOps Agent Routing",
+      "passed": true,
+      "details": "DevOps query processed successfully",
+      "timestamp": "2025-06-05T00:59:21.547473",
+      "response_data": null
+    },
+    {
+      "test_name": "Research Agent Routing",
+      "passed": true,
+      "details": "Research query processed successfully",
+      "timestamp": "2025-06-05T00:59:21.551382",
+      "response_data": null
+    },
+    {
+      "test_name": "Memory System Integration",
+      "passed": true,
+      "details": "Memory storage and recall working",
+      "timestamp": "2025-06-05T00:59:22.559150",
+      "response_data": null
+    },
+    {
+      "test_name": "Computer Use Agent Capability",
+      "passed": true,
+      "details": "CUA capabilities recognized and processed",
+      "timestamp": "2025-06-05T00:59:22.562134",
+      "response_data": null
+    },
+    {
+      "test_name": "Multi-Agent Collaboration",
+      "passed": true,
+      "details": "Multi-agent collaboration request processed",
+      "timestamp": "2025-06-05T00:59:22.564914",
+      "response_data": null
+    }
+  ]
+}
