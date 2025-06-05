@@ -259,10 +259,11 @@ class ThemeManager:
     
     def get_all_themes(self, user_id: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """Get all available themes"""
-        return {
-            theme_id: self.get_theme(theme_id, user_id)
-            for theme_id in self.themes.keys()
-        }
+        themes_data = {}
+        for theme_id in self.themes.keys():
+            theme_config = self.get_theme(theme_id, user_id)
+            themes_data[theme_id] = theme_config if theme_config is not None else {}
+        return themes_data
     
     def set_active_theme(self, user_id: str, theme_id: str) -> Dict[str, Any]:
         """Set the active theme for a user"""

@@ -2,6 +2,7 @@
 import os
 from typing import Dict, Any
 from dataclasses import dataclass
+from flask import current_app # Added import
 
 @dataclass
 class MamaBearConfig:

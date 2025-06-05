@@ -290,6 +290,10 @@ class EnhancedSessionManager:
             search_query = f"user:{user_id} category:session"
             if session_type:
                 search_query += f" session_type:{session_type.value}"
+
+            if self.memory is None:
+                logger.error("EnhancedSessionManager: Mem0 client (self.memory) not initialized. Cannot get user sessions.")
+                return []
             
             memories = self.memory.search(search_query, limit=50)
             
@@ -330,6 +334,9 @@ class EnhancedSessionManager:
         logger.info("🧹 Starting session cleanup...")
         
         try:
+            if self.memory is None:
+                logger.error("EnhancedSessionManager: Mem0 client (self.memory) not initialized. Cannot cleanup expired sessions.")
+                return
             # Search for all sessions
             memories = self.memory.search("category:session", limit=100)
             
@@ -379,6 +386,9 @@ class EnhancedSessionManager:
         """Get session statistics"""
         
         try:
+            if self.memory is None:
+                logger.error("EnhancedSessionManager: Mem0 client (self.memory) not initialized. Cannot get session stats.")
+                return {}
             query = f"user:{user_id} category:session" if user_id else "category:session"
             memories = self.memory.search(query, limit=200)
             
@@ -553,6 +563,10 @@ class EnhancedSessionManager:
     async def _store_session_to_mem0(self, session: EnhancedSession):
         """Store session to Mem0 for persistence"""
         
+        if self.memory is None:
+            logger.error(f"EnhancedSessionManager: Mem0 client (self.memory) not initialized. Cannot store session {session.session_id}.")
+            return
+
         try:
             session_dict = self._session_to_dict(session)
             session_description = (
@@ -630,6 +644,10 @@ class EnhancedSessionManager:
     
     async def _store_checkpoint_to_mem0(self, checkpoint: SessionCheckpoint):
         """Store checkpoint to Mem0"""
+
+        if self.memory is None:
+            logger.error(f"EnhancedSessionManager: Mem0 client (self.memory) not initialized. Cannot store checkpoint {checkpoint.checkpoint_id}.")
+            return
         
         try:
             checkpoint_dict = asdict(checkpoint)

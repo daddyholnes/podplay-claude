@@ -573,6 +573,7 @@ class EnhancedAgentOrchestrator:
         
         # Phase 2: Execution
         if plan['status'] == 'approved':
+            # Method _execute_plan will be moved here from LeadDeveloperAgent
             return await self._execute_plan(plan, user_id)
         else:
             return {
@@ -1053,61 +1054,8 @@ class MamaBearAgent:
         
         # Could trigger collaborative actions here
 
-class LeadDeveloperAgent(MamaBearAgent):
-    """Special agent that coordinates other agents and handles complex planning"""
-    
-    def __init__(self, agent_id: str, orchestrator):
-        super().__init__(agent_id, None, orchestrator)
-        self.capabilities = ['planning', 'coordination', 'code_review', 'architecture']
-    
-    async def create_plan(self, request: str, user_id: str) -> Dict[str, Any]:
-        """Create a detailed plan for complex requests"""
-        
-        planning_prompt = f"""
-        As the Lead Developer Mama Bear, create a detailed plan for this request:
-        
-        Request: "{request}"
-        User: {user_id}
-        
-        Break this down into:
-        1. Requirements analysis
-        2. Task decomposition
-        3. Agent assignments
-        4. Dependencies
-        5. Estimated timeline
-        6. Resource requirements
-        
-        Format as a structured plan that can be executed step by step.
-        """
-        
-        result = await self.orchestrator.model_manager.get_response(
-            prompt=planning_prompt,
-            mama_bear_variant='main_chat',
-            required_capabilities=['chat', 'code']
-        )
-        
-        if result['success']:
-            return {
-                'id': f"plan_{datetime.now().timestamp()}",
-                'title': f"Plan for: {request[:50]}...",
-                'description': result['response'],
-                'status': 'pending_approval',
-                'created_by': self.id,
-                'user_id': user_id
-            }
-        else:
-            return {
-                'id': f"plan_{datetime.now().timestamp()}",
-                'title': f"Plan for: {request[:50]}...",
-                'description': "I'll help you with this step by step!",
-                'status': 'simple',
-                'created_by': self.id,
-                'user_id': user_id
-            }
-    
     async def _execute_plan(self, plan: Dict[str, Any], user_id: str) -> Dict[str, Any]:
-        """Execute a plan created by the planning phase"""
-        
+        """Execute a plan created by the planning phase (Moved from LeadDeveloperAgent)"""
         try:
             executed_tasks = []
             
@@ -1117,7 +1065,7 @@ class LeadDeveloperAgent(MamaBearAgent):
                 task_description = task_info.get('description', '')
                 
                 # Get the appropriate agent
-                agent = self.orchestrator.agents.get(agent_id, self.orchestrator.agents.get('lead_developer')) # Access via orchestrator
+                agent = self.agents.get(agent_id, self.agents.get('lead_developer')) # Changed from self.orchestrator.agents
                 
                 if agent:
                     # Execute the task
@@ -1130,7 +1078,7 @@ class LeadDeveloperAgent(MamaBearAgent):
                     })
                     
                     # Track performance
-                    await self.orchestrator._track_agent_performance(agent_id, result.get('success', False)) # Access via orchestrator
+                    await self._track_agent_performance(agent_id, result.get('success', False)) # Changed from self.orchestrator._track_agent_performance
                 else:
                     executed_tasks.append({
                         'agent_id': agent_id,
@@ -1179,6 +1127,15 @@ class LeadDeveloperAgent(MamaBearAgent):
                 'content': "I encountered an error while executing the plan. Let me help you in a simpler way!",
                 'error': str(e)
             }
+
+class LeadDeveloperAgent(MamaBearAgent):
+    """Special agent that coordinates other agents and handles complex planning"""
+
+    def __init__(self, agent_id: str, orchestrator):
+        super().__init__(agent_id, None, orchestrator) # specialist_variant is None for LeadDeveloperAgent
+        self.capabilities = ['planning', 'coordination', 'code_review', 'architecture']
+
+    # _execute_plan method has been moved to EnhancedAgentOrchestrator
  
 # Basic specialist classes as fallbacks
 class BasicResearchSpecialist:

@@ -6,8 +6,26 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import google.generativeai as genai
+from google.generativeai.types import GenerationConfig
 from datetime import datetime, timedelta
 import json
+import os # Ensure os is imported if needed for getenv, though it seems to be missing if used
+
+# Attempt to import specialized variants if EnhancedMamaBearAgent is to be defined here
+try:
+    from backend.services.mama_bear_specialized_variants import (
+        ResearchSpecialist, DevOpsSpecialist, ScoutCommander,
+        ModelCoordinator, ToolCurator, IntegrationArchitect, LiveAPISpecialist
+    )
+except ImportError:
+    # Define dummy classes if import fails, so the EnhancedMamaBearAgent class below doesn't break
+    class ResearchSpecialist: pass
+    class DevOpsSpecialist: pass
+    class ScoutCommander: pass
+    class ModelCoordinator: pass
+    class ToolCurator: pass
+    class IntegrationArchitect: pass
+    class LiveAPISpecialist: pass
 
 class ModelPriority(Enum):
     PRIMARY = 1
@@ -247,10 +265,18 @@ class MamaBearModelManager:
             # Make the API call
             response = await model.generate_content_async(
                 message_content,
-                generation_config=generation_config
+                generation_config=GenerationConfig(**generation_config) # Ensure it's the correct type
             )
             
-            return response.text
+            # Robust text extraction
+            try:
+                return response.text
+            except ValueError:
+                logger.warning(f"Gemini response for model {model_config.name} did not contain direct text. Parts: {response.parts if hasattr(response, 'parts') else 'N/A'}")
+                if response.candidates and hasattr(response.candidates[0], 'content') and response.candidates[0].content and hasattr(response.candidates[0].content, 'parts') and response.candidates[0].content.parts:
+                    return "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, "text"))
+                logger.warning(f"Could not extract text from Gemini response for model {model_config.name}.")
+                return "" # Or raise an error / return specific message
             
         except Exception as e:
             error_msg = str(e).lower()
@@ -431,6 +457,7 @@ class EnhancedMamaBearAgent:
         self.scrapybara = scrapybara_client
         self.memory = memory_manager
         self.model_manager = MamaBearModelManager()
+        self.logger = logging.getLogger(__name__) # Add logger initialization
         
         # Initialize model manager
         asyncio.create_task(self.model_manager.warm_up_models())

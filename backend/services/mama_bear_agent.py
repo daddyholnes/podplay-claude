@@ -240,7 +240,14 @@ class EnhancedMamaBearAgent:
             elif model.startswith('gemini'):
                 model_instance = genai.GenerativeModel(model)
                 response = model_instance.generate_content(prompt)
-                return response.text
+                try:
+                    return response.text
+                except ValueError:
+                    logger.warning(f"Gemini response for model {model} did not contain direct text. Parts: {response.parts if hasattr(response, 'parts') else 'N/A'}")
+                    if response.candidates and hasattr(response.candidates[0], 'content') and response.candidates[0].content and hasattr(response.candidates[0].content, 'parts') and response.candidates[0].content.parts:
+                        return "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, "text"))
+                    logger.warning(f"Could not extract text from Gemini response for model {model}.")
+                    return "" # Or raise an error / return specific message
             
             else:
                 # Fallback to Claude

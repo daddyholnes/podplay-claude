@@ -221,8 +221,14 @@ class CompleteMamaBearSystem:
         if MamaBearMonitoring:
             try:
                 self.monitoring = MamaBearMonitoring()
-                self.app.config['mama_bear_monitoring'] = self.monitoring
-                logger.info("✅ Monitoring initialized")
+                if self.app is None:
+                    logger.error("Cannot initialize monitoring: self.app is None.")
+                    return
+                if hasattr(self.app, 'config'):
+                    self.app.config['mama_bear_monitoring'] = self.monitoring
+                    logger.info("✅ Monitoring initialized")
+                else:
+                    logger.error("Cannot store monitoring in app.config: self.app.config is not available.")
             except Exception as e:
                 logger.warning(f"⚠️ Monitoring initialization failed: {e}")
     
@@ -284,6 +290,9 @@ class CompleteMamaBearSystem:
                 allow_unsafe_werkzeug=True
             )
         else:
+            if self.app is None:
+                logger.error("Cannot run Flask app: self.app is None.")
+                raise RuntimeError("Application not properly initialized: self.app is None.")
             self.app.run(host=host, port=port, debug=debug)
 
 # Convenience function for easy setup
@@ -295,9 +304,17 @@ async def create_mama_bear_app(config=None):
     system = CompleteMamaBearSystem(config)
     app = await system.initialize()
     
-    # Store system reference in app config
-    app.config['mama_bear_system'] = system
+    if app is None:
+        logger.error("Failed to initialize Flask app within CompleteMamaBearSystem. Cannot store system reference.")
+        raise RuntimeError("Failed to initialize the Flask application.")
     
+    # Store system reference in app config
+    if hasattr(app, 'config'):
+        app.config['mama_bear_system'] = system
+    else:
+        logger.error("Initialized app does not have a 'config' attribute.")
+        raise AttributeError("Initialized app is missing 'config' attribute.")
+
     return app
 
 # Main entry point

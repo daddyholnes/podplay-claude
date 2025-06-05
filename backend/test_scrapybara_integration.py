@@ -338,6 +338,7 @@ class ScrapybaraIntegrationTest:
         logger.info("Starting comprehensive Scrapybara integration tests...")
         
         await self.setup()
+        assert self.orchestrator is not None, "Orchestrator must be initialized by setup()"
         
         # Run tests
         await self.test_system_capabilities()

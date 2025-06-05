@@ -46,7 +46,7 @@ try:
     from services.complete_enhanced_integration import integrate_complete_enhanced_system_with_app, CompleteEnhancedIntegration
     from services.mama_bear_model_manager import MamaBearModelManager
     from services.enhanced_scrapybara_integration import EnhancedScrapybaraManager
-    from api.enhanced_orchestration_api import integrate_enhanced_orchestration_with_app
+    from api.enhanced_orchestration_api import init_enhanced_orchestration_api as integrate_enhanced_orchestration_with_app
     ENHANCED_SYSTEM_AVAILABLE = True
     logger.info("✅ Complete Enhanced System with Mem0 integration available")
 except ImportError as e:
@@ -277,8 +277,11 @@ async def initialize_sanctuary_services():
                 # Start background autonomous services
                 enhanced_integration_instance = getattr(app, 'complete_enhanced_integration', None)
                 if enhanced_integration_instance:
-                    await enhanced_integration_instance.start_autonomous_background_services()
-                    logger.info("🌟 Autonomous background services started")
+                    if callable(enhanced_integration_instance.start_autonomous_background_services):
+                        await enhanced_integration_instance.start_autonomous_background_services()
+                        logger.info("🌟 Autonomous background services started")
+                    else:
+                        logger.warning("Method start_autonomous_background_services is not callable or not found on enhanced_integration_instance.")
                 
             else:
                 logger.error("❌ Enhanced system integration failed, falling back to basic services")

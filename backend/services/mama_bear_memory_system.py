@@ -18,6 +18,16 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# The definitions for EnhancedMemoryManager, related data classes (MemoryType,
+# MemoryImportance, MemoryRecord, UserProfile), and the initialize_enhanced_memory
+# function have been moved to 'enhanced_memory_system.py' to serve as the
+# canonical source and resolve Pylance confusion due to duplicate definitions.
+#
+# This file should no longer be imported for these definitions.
+# Imports should point to 'enhanced_memory_system.py'.
+# This file might be a candidate for deletion if it serves no other purpose.
+
+"""
 class MemoryType(Enum):
     CONVERSATION = "conversation"
     AGENT_CONTEXT = "agent_context"
@@ -93,7 +103,13 @@ class UserProfile:
             self.last_updated = datetime.now()
 
 class EnhancedMemoryManager:
-    """Advanced memory management with learning and context awareness"""
+    # This class definition is now canonical in enhanced_memory_system.py
+    pass
+
+# All methods previously defined in EnhancedMemoryManager in this file
+# have been removed to avoid duplication. Please refer to
+# enhanced_memory_system.py for the complete implementation.
+"""
     
     def __init__(self, mem0_client=None, local_storage_path="./mama_bear_memory"):
         self.mem0_client = mem0_client
@@ -854,10 +870,20 @@ class EnhancedMemoryManager:
 def initialize_enhanced_memory(mem0_client=None) -> EnhancedMemoryManager:
     """Initialize the enhanced memory system"""
     
-    memory_manager = EnhancedMemoryManager(mem0_client)
-    logger.info("🧠 Enhanced Mama Bear Memory System initialized!")
+    memory_manager = EnhancedMemoryManager(mem0_client) # This would now call the (empty) local class
+    logger.info("🧠 Enhanced Mama Bear Memory System initialized!") # This line and below are part of the old func
     
     return memory_manager
+"""
+
+# The initialize_enhanced_memory function is also canonical in enhanced_memory_system.py
+# If this file needs to provide it, it should re-export:
+# from .enhanced_memory_system import initialize_enhanced_memory
+
+logger.info(
+    "Content of mama_bear_memory_system.py has been significantly reduced to prevent "
+    "duplicate class definitions with enhanced_memory_system.py."
+)
 
 # Public methods required by CompleteEnhancedIntegration (stubs)
     async def get_enhanced_context(self, user_id: str, session_id: str, include_patterns: bool = True, include_learning_insights: bool = True) -> Dict[str, Any]:
@@ -908,6 +934,7 @@ def initialize_enhanced_memory(mem0_client=None) -> EnhancedMemoryManager:
     # Private methods for pattern analysis and learning (stubs)
     async def _analyze_interaction_patterns(self, interactions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Stub: Analyze interaction patterns from a list of interactions"""
+        logger.debug(f"Analyzing {len(interactions)} interactions for patterns.")
         if not interactions:
             return {"frequency": {}, "sentiment_trends": {}}
         

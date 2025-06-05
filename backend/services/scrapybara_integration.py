@@ -89,12 +89,16 @@ class GeminiScrapybaraAdapter:
         self.model_name = model_name
         
         if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel(model_name)
+            # Ensure genai is available before configuring
+            if genai:
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel(model_name)
+            else:
+                raise ImportError("google.generativeai (genai) not available for configuration.")
         else:
             raise ValueError("Gemini API key required")
     
-    async def generate_response(self, messages: List[Dict], tools: List[Any] = None) -> Dict:
+    async def generate_response(self, messages: List[Dict], tools: Optional[List[Any]] = None) -> Dict:
         """Generate response compatible with Scrapybara Act SDK format"""
         try:
             # Convert messages to Gemini format
@@ -224,12 +228,12 @@ class ScrapybaraManager:
     
     async def create_instance(
         self,
-        instance_type: InstanceType = None,
-        timeout_hours: int = None,
-        instance_id: str = None
+        instance_type: Optional[InstanceType] = None,
+        timeout_hours: Optional[int] = None,
+        instance_id: Optional[str] = None
     ) -> Optional[ScrapybaraInstance]:
         """Create a new Scrapybara instance"""
-        if not SCRAPYBARA_AVAILABLE:
+        if not SCRAPYBARA_AVAILABLE or not self.client:
             self.logger.error("Scrapybara SDK not available")
             return None
         
@@ -255,6 +259,10 @@ class ScrapybaraManager:
                 scrapybara_instance = self.client.start_windows(timeout_hours=timeout_hours)
             else:
                 raise ValueError(f"Unsupported instance type: {instance_type}")
+
+            if scrapybara_instance is None:
+                self.logger.error(f"Failed to create Scrapybara instance of type {instance_type.value if instance_type else 'default'}")
+                return None
             
             # Create tools for the instance
             tools = [
@@ -266,7 +274,10 @@ class ScrapybaraManager:
             # Initialize browser if needed
             if instance_type in [InstanceType.BROWSER, InstanceType.UBUNTU] and self.config.enable_browser_auth:
                 try:
-                    scrapybara_instance.browser.start()
+                    if hasattr(scrapybara_instance, 'browser') and scrapybara_instance.browser:
+                        scrapybara_instance.browser.start()
+                    else:
+                        self.logger.warning(f"Instance type {instance_type.value if instance_type else 'default'} does not have a browser object to start, or it is None.")
                 except Exception as e:
                     self.logger.warning(f"Failed to initialize browser: {e}")
             
@@ -363,13 +374,17 @@ class ScrapybaraManager:
     async def execute_computer_task(
         self,
         task: str,
-        instance_id: str = None,
-        instance_type: InstanceType = None,
-        timeout_hours: int = None,
-        on_step: Callable = None,
+        instance_id: Optional[str] = None,
+        instance_type: Optional[InstanceType] = None,
+        timeout_hours: Optional[int] = None,
+        on_step: Optional[Callable] = None,
         schema: Any = None
     ) -> Dict[str, Any]:
         """Execute a computer use task with automatic instance management"""
+
+        if not self.client:
+            self.logger.error("Scrapybara client not available for executing computer task.")
+            return {"error": "Scrapybara client not available"}
         
         # Get or create instance
         if instance_id:
@@ -510,8 +525,8 @@ class ScrapybaraOrchestrator:
     async def execute_autonomous_workflow(
         self,
         workflow_description: str,
-        context: Dict[str, Any] = None,
-        instance_preferences: Dict[str, Any] = None
+        context: Optional[Dict[str, Any]] = None,
+        instance_preferences: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute autonomous workflow with Scout.new-level capabilities"""
         
@@ -520,7 +535,7 @@ class ScrapybaraOrchestrator:
         
         # Parse workflow requirements
         instance_type = self._determine_instance_type(workflow_description, instance_preferences)
-        timeout_hours = instance_preferences.get('timeout_hours') if instance_preferences else None
+        timeout_hours = instance_preferences.get('timeout_hours') if instance_preferences else self.config.default_timeout_hours
         
         # Create workflow context
         workflow_context = {
@@ -582,12 +597,12 @@ class ScrapybaraOrchestrator:
                 "error": str(e)
             }
     
-    def _determine_instance_type(self, description: str, preferences: Dict = None) -> InstanceType:
+    def _determine_instance_type(self, description: str, preferences: Optional[Dict[str, Any]] = None) -> InstanceType:
         """Determine optimal instance type based on task description"""
         description_lower = description.lower()
         
         # Check preferences first
-        if preferences and 'instance_type' in preferences:
+        if preferences and preferences.get('instance_type'):
             try:
                 return InstanceType(preferences['instance_type'])
             except ValueError:
@@ -633,10 +648,10 @@ class ScrapybaraOrchestrator:
 
 # Factory function for easy integration
 def create_scrapybara_orchestrator(
-    api_key: str = None,
-    gemini_api_key: str = None,
-    anthropic_api_key: str = None,
-    openai_api_key: str = None,
+    api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    anthropic_api_key: Optional[str] = None,
+    openai_api_key: Optional[str] = None,
     max_instances: int = 5
 ) -> ScrapybaraOrchestrator:
     """Create a Scrapybara orchestrator with specified configuration"""

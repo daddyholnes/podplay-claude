@@ -52,11 +52,11 @@ class AgentContext:
     agent_id: str
     current_task: Optional[str] = None
     user_intent: str = ""
-    project_context: Dict[str, Any] = None
-    conversation_history: List[Dict] = None
-    available_tools: List[str] = None
-    resource_limits: Dict[str, Any] = None
-    collaboration_state: Dict[str, Any] = None
+    project_context: Optional[Dict[str, Any]] = None
+    conversation_history: Optional[List[Dict]] = None
+    available_tools: Optional[List[str]] = None
+    resource_limits: Optional[Dict[str, Any]] = None
+    collaboration_state: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.project_context is None:
@@ -79,16 +79,16 @@ class Task:
     agent_type: str
     priority: TaskPriority
     status: TaskStatus
-    dependencies: List[str] = None
+    dependencies: Optional[List[str]] = None
     estimated_duration: int = 300  # seconds
     max_retries: int = 3
     current_attempt: int = 0
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
-    context: Dict[str, Any] = None
+    context: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.dependencies is None:
@@ -107,7 +107,7 @@ class Plan:
     tasks: List[Task]
     user_id: str
     status: TaskStatus = TaskStatus.PENDING
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     estimated_completion: Optional[datetime] = None
     
     def __post_init__(self):
@@ -580,8 +580,15 @@ class AgentOrchestrator:
             return_exceptions=True
         )
         
+        # Filter results before synthesizing
+        valid_results = [r for r in results if isinstance(r, dict)]
+        exceptions = [r for r in results if isinstance(r, BaseException)]
+        if exceptions:
+            logger.error(f"Encountered {len(exceptions)} exceptions during collaborative task execution for {collaboration_id}: {[str(e) for e in exceptions]}")
+            # Optionally, include error information in the synthesized result or handle differently
+
         # Synthesize results
-        return await self._synthesize_collaboration_results(collaboration_id, results, message)
+        return await self._synthesize_collaboration_results(collaboration_id, valid_results, exceptions, message) # Pass exceptions
     
     async def _plan_and_execute(self, strategy: Dict[str, Any], message: str, user_id: str) -> Dict[str, Any]:
         """Plan and execute complex multi-step requests"""
@@ -595,6 +602,7 @@ class AgentOrchestrator:
         
         # Phase 2: Execution
         if plan['status'] == 'approved':
+            # Call to the new placeholder method _execute_plan
             return await self._execute_plan(plan, user_id)
         else:
             return {
@@ -649,17 +657,33 @@ class AgentOrchestrator:
             # Clean up
             if task.id in self.active_tasks:
                 del self.active_tasks[task.id]
+
+    async def _execute_plan(self, plan: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+        """Placeholder for executing a plan. Actual implementation might involve complex task scheduling."""
+        logger.error(f"_execute_plan is not fully implemented. Plan: {plan.get('id')} for user {user_id}")
+        # This should ideally iterate through plan.tasks and call _execute_task for each
+        # For now, return a simple acknowledgement or error
+        return {
+            'success': False,
+            'error': '_execute_plan not implemented',
+            'message': f"Plan '{plan.get('title', 'N/A')}' received but execution logic is pending.",
+            'plan_id': plan.get('id')
+        }
     
-    async def _synthesize_collaboration_results(self, collaboration_id: str, results: List[Dict], original_message: str) -> Dict[str, Any]:
+    async def _synthesize_collaboration_results(self, collaboration_id: str, valid_results: List[Dict[str, Any]], exceptions: List[BaseException], original_message: str) -> Dict[str, Any]:
         """Combine results from multiple agents into a coherent response"""
         
+        # Include information about errors if any occurred
+        error_messages = [str(e) for e in exceptions]
+        results_for_prompt = valid_results + ([{"error": "Some tasks failed", "details": error_messages}] if error_messages else [])
+
         synthesis_prompt = f"""
         Combine these results from different Mama Bear specialists into a coherent response:
         
         Original request: "{original_message}"
         
         Results:
-        {json.dumps(results, indent=2)}
+        {json.dumps(results_for_prompt, indent=2)}
         
         Create a unified response that:
         1. Addresses the original request completely
@@ -681,15 +705,17 @@ class AgentOrchestrator:
             'type': 'collaborative_response',
             'content': result['response'] if result['success'] else "I've gathered information from my specialists and I'm ready to help!",
             'collaboration_id': collaboration_id,
-            'participating_agents': [r.get('agent_id') for r in results if isinstance(r, dict)],
+            'participating_agents': [r.get('agent_id') for r in valid_results if r.get('agent_id')], # Use valid_results
             'model_used': result.get('model_used'),
             'metadata': {
-                'collaboration_results': results,
-                'synthesis_successful': result['success']
+                'collaboration_results': valid_results, # Store valid_results
+                'synthesis_successful': result['success'],
+                'errors_encountered': len(exceptions),
+                'error_details': error_messages
             }
         }
     
-    async def send_agent_message(self, from_agent: str, to_agent: str, message: str, context: Dict = None):
+    async def send_agent_message(self, from_agent: str, to_agent: str, message: str, context: Optional[Dict[str, Any]] = None): # Optional context
         """Enable agents to communicate with each other"""
         
         message_obj = {

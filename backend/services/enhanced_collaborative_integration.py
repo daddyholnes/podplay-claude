@@ -14,9 +14,9 @@ from .collaborative_workspace import (
     CollaborationMode,
     WorkspaceRole
 )
-from .scrapybara_integration import ScrapybaraIntegrationManager
-from .enhanced_orchestration_system import EnhancedOrchestrationSystem
-from .enhanced_memory_system import EnhancedMemorySystem
+from .scrapybara_integration import ScrapybaraManager as ScrapybaraIntegrationManager # Alias for compatibility if needed, or just use ScrapybaraManager
+from .enhanced_orchestration_system import EnhancedAgentOrchestrator as EnhancedOrchestrationSystem # Alias for compatibility
+from .enhanced_memory_system import EnhancedMemoryManager as EnhancedMemorySystem # Alias for compatibility
 
 logger = logging.getLogger(__name__)
 
@@ -386,7 +386,14 @@ class EnhancedCollaborativeIntegration:
             else:
                 # Execute with local Mama Bear capabilities
                 if self.orchestration_system:
-                    result = await self.orchestration_system.process_autonomous_request(task_context)
+                    # Correctly call process_autonomous_request with keyword arguments
+                    result = await self.orchestration_system.process_autonomous_request(
+                        message=task_context['message'],
+                        user_id=task_context['user_id'],
+                        session_id=task_context.get('session_id'), # session_id is optional
+                        context=task_context # Pass the whole task_context as the context dict
+                        # page_context will use its default from the method definition if not in task_context
+                    )
                 else:
                     # Fallback simple response
                     result = {
