@@ -244,13 +244,20 @@ class MamaBearModelManager:
                 'top_k': kwargs.get('top_k', 64),
             }
             
-            # Make the API call
-            response = await model.generate_content_async(
-                message_content,
-                generation_config=generation_config
-            )
-            
-            return response.text
+            # Make the API call with timeout
+            try:
+                response = await asyncio.wait_for(
+                    model.generate_content_async(
+                        message_content,
+                        generation_config=generation_config
+                    ),
+                    timeout=15.0  # 15 second timeout
+                )
+                
+                return response.text
+            except asyncio.TimeoutError:
+                self.logger.warning(f"Timeout for {model_config.name} after 15 seconds")
+                raise APIException(f"API call timeout after 15 seconds for {model_config.name}")
             
         except Exception as e:
             error_msg = str(e).lower()
@@ -397,6 +404,61 @@ class MamaBearModelManager:
             }
         
         return status
+    
+    async def get_response(self, prompt: str, mama_bear_variant: str = 'research_specialist', required_capabilities: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
+        """
+        Orchestration-compatible response method for MamaBearModelManager
+        """
+        try:
+            # Create messages list from prompt
+            messages = [{'role': 'user', 'content': prompt}]
+            
+            # Prepare mama_bear_context
+            mama_bear_context = {
+                'variant': mama_bear_variant,
+                'user_id': kwargs.get('user_id', 'system'),
+                'session_context': {}
+            }
+            
+            # Generate response using the model manager
+            response = await self.generate_response(
+                messages=messages,
+                mama_bear_context=mama_bear_context,
+                requires_reasoning=any(keyword in prompt.lower() for keyword in [
+                    'analyze', 'compare', 'explain', 'research', 'strategy', 'plan', 'design'
+                ]),
+                **kwargs
+            )
+            
+            return {
+                'success': True,
+                'response': response.content,
+                'content': response.content,
+                'model_used': response.model_used,
+                'variant_used': mama_bear_variant,
+                'metadata': {
+                    'billing_account': response.billing_account,
+                    'processing_time': response.processing_time,
+                    'fallback_count': response.fallback_count,
+                    'quota_warnings': response.quota_warnings
+                }
+            }
+            
+        except AllModelsFailedException:
+            return {
+                'success': False,
+                'error': 'all_models_failed',
+                'response': "I'm experiencing technical difficulties with my AI models right now. Please try again in a few minutes! 🐻💙",
+                'content': "I'm experiencing technical difficulties with my AI models right now. Please try again in a few minutes! 🐻💙"
+            }
+        except Exception as e:
+            self.logger.error(f"Error in MamaBearModelManager.get_response: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'response': f"🐻 I encountered an issue: {str(e)}",
+                'content': f"🐻 I encountered an issue: {str(e)}"
+            }
     
     async def warm_up_models(self):
         """Warm up all models with test requests to check availability"""
@@ -546,15 +608,17 @@ class EnhancedMamaBearAgent:
             
             return {
                 'success': True,
+                'response': result['content'],  # Use 'response' key for compatibility
                 'content': result['content'],
-                'model_used': result.get('model', 'unknown'),
-                'variant_used': result.get('variant', mama_bear_variant)
+                'model_used': result.get('metadata', {}).get('model_used', 'unknown'),
+                'variant_used': result.get('metadata', {}).get('mama_bear_variant', mama_bear_variant)
             }
             
         except Exception as e:
-            logger.error(f"Error in get_response: {e}")
+            self.logger.error(f"Error in get_response: {e}")
             return {
                 'success': False,
                 'error': str(e),
+                'response': f"🐻 I encountered an issue: {str(e)}",
                 'content': f"🐻 I encountered an issue: {str(e)}"
             }

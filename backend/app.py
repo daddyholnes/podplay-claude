@@ -163,9 +163,12 @@ async def initialize_sanctuary_services():
             
             # Initialize orchestrator with enhanced components
             if AgentOrchestrator:
+                # Import and create MamaBearModelManager for orchestration
+                from services.mama_bear_model_manager import MamaBearModelManager
+                
                 mama_bear_orchestrator = AgentOrchestrator(
                     memory_manager=enhanced_memory or get_memory_manager(),
-                    model_manager=await get_mama_bear_agent(),
+                    model_manager=MamaBearModelManager(),
                     scrapybara_client=enhanced_scrapybara or get_scrapybara_manager()
                 )
                 

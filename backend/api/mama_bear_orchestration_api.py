@@ -10,11 +10,46 @@ import asyncio
 import json
 from datetime import datetime
 import logging
+from enum import Enum
+from dataclasses import is_dataclass, asdict
+from typing import Any, Dict, List, Union
 
 logger = logging.getLogger(__name__)
 
 # Blueprint for REST endpoints
 orchestration_bp = Blueprint('orchestration', __name__)
+
+def serialize_for_json(obj: Any) -> Any:
+    """
+    Recursively serialize complex objects for JSON output.
+    Handles enums, dataclasses, datetime objects, and nested structures.
+    """
+    if obj is None:
+        return None
+    elif isinstance(obj, Enum):
+        # Convert enum to its string value
+        return obj.value
+    elif is_dataclass(obj) and not isinstance(obj, type):
+        # Convert dataclass instance to dictionary and recursively serialize its contents
+        return {k: serialize_for_json(v) for k, v in asdict(obj).items()}
+    elif isinstance(obj, datetime):
+        # Convert datetime to ISO format string
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        # Recursively serialize dictionary values
+        return {k: serialize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        # Recursively serialize list/tuple items
+        return [serialize_for_json(item) for item in obj]
+    elif isinstance(obj, (str, int, float, bool)):
+        # Basic types - return as-is
+        return obj
+    else:
+        # For any other type, try to convert to string as fallback
+        try:
+            return str(obj)
+        except Exception:
+            return f"<{type(obj).__name__}: serialization failed>"
 
 def get_orchestrator():
     """Safely get orchestrator from app context"""
@@ -47,14 +82,30 @@ def intelligent_chat():
             page_context=page_context
         ))
         
+        # Debug logging
+        logger.info(f"Orchestrator result type: {type(result)}")
+        logger.info(f"Orchestrator result: {result}")
+        
+        # Serialize the result to handle enums and complex objects
+        try:
+            serialized_result = serialize_for_json(result)
+            logger.info(f"Serialization successful: {type(serialized_result)}")
+        except Exception as serialize_error:
+            logger.error(f"Serialization failed: {serialize_error}")
+            logger.error(f"Failed object: {result}")
+            raise
+        
         return jsonify({
             'success': True,
-            'response': result,
+            'response': serialized_result,
             'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
         logger.error(f"Error in intelligent_chat: {e}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -74,9 +125,12 @@ def get_agents_status():
             
         status = asyncio.run(orchestrator.get_system_status())
         
+        # Serialize the status to handle enums and complex objects
+        serialized_status = serialize_for_json(status)
+        
         return jsonify({
             'success': True,
-            'status': status,
+            'status': serialized_status,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -112,9 +166,12 @@ def direct_agent_communication(agent_id):
         # Direct communication with agent
         result = asyncio.run(agent.handle_request(message, user_id))
         
+        # Serialize the result to handle enums and complex objects
+        serialized_result = serialize_for_json(result)
+        
         return jsonify({
             'success': True,
-            'response': result,
+            'response': serialized_result,
             'agent_id': agent_id,
             'timestamp': datetime.now().isoformat()
         })
@@ -150,16 +207,12 @@ def analyze_workflow():
         # Analyze the workflow
         analysis = asyncio.run(workflow_intelligence.analyze_request(request_text, user_id))
         
+        # Serialize the analysis to handle enums and complex objects
+        serialized_analysis = serialize_for_json(analysis)
+        
         return jsonify({
             'success': True,
-            'analysis': {
-                'workflow_type': analysis.workflow_type.value,
-                'confidence': analysis.confidence,
-                'recommended_agents': analysis.recommended_agents,
-                'estimated_complexity': analysis.estimated_complexity,
-                'estimated_duration': analysis.estimated_duration,
-                'resource_requirements': analysis.resource_requirements
-            },
+            'analysis': serialized_analysis,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -195,23 +248,13 @@ def search_memory():
         # Search memories
         memories = asyncio.run(memory_manager.search_memories(query, user_id, limit))
         
-        # Convert memories to serializable format
-        memory_data = []
-        for memory in memories:
-            memory_data.append({
-                'id': memory.id,
-                'type': memory.type.value,
-                'content': memory.content,
-                'importance': memory.importance.value,
-                'tags': memory.tags or [],
-                'created_at': memory.created_at.isoformat() if memory.created_at else None,
-                'access_count': memory.access_count
-            })
+        # Serialize memories to handle enums and complex objects
+        serialized_memories = serialize_for_json(memories)
         
         return jsonify({
             'success': True,
-            'memories': memory_data,
-            'total_found': len(memory_data),
+            'memories': serialized_memories,
+            'total_found': len(serialized_memories) if isinstance(serialized_memories, list) else 0,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -310,18 +353,14 @@ def get_user_profile():
         # Get decision patterns
         patterns = asyncio.run(memory_manager.analyze_decision_patterns(user_id))
         
+        # Serialize profile and patterns to handle complex objects
+        serialized_profile = serialize_for_json(profile)
+        serialized_patterns = serialize_for_json(patterns)
+        
         return jsonify({
             'success': True,
-            'profile': {
-                'user_id': profile.user_id,
-                'expertise_level': profile.expertise_level,
-                'preferred_agents': profile.preferred_agents or [],
-                'communication_style': profile.communication_style or {},
-                'success_patterns': profile.success_patterns or {},
-                'learning_preferences': profile.learning_preferences or {},
-                'last_updated': profile.last_updated.isoformat() if profile.last_updated else None
-            },
-            'patterns': patterns,
+            'profile': serialized_profile,
+            'patterns': serialized_patterns,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -435,10 +474,13 @@ def setup_orchestration_websockets(socketio):
                 page_context=page_context
             )
             
+            # Serialize the result to handle enums and complex objects
+            serialized_result = serialize_for_json(result)
+            
             # Emit response
             socketio.emit('mama_bear_response', {
                 'success': True,
-                'response': result,
+                'response': serialized_result,
                 'timestamp': datetime.now().isoformat()
             }, to=room)
             
@@ -479,9 +521,12 @@ def setup_orchestration_websockets(socketio):
             # Direct communication
             result = await agent.handle_request(message, user_id)
             
+            # Serialize the result to handle enums and complex objects
+            serialized_result = serialize_for_json(result)
+            
             socketio.emit('agent_response', {
                 'agent_id': agent_id,
-                'response': result,
+                'response': serialized_result,
                 'timestamp': datetime.now().isoformat()
             }, to=room)
             

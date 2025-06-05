@@ -13,6 +13,10 @@ from dataclasses import dataclass, asdict
 from abc import ABC, abstractmethod
 import logging
 from collections import defaultdict, deque
+from .mama_bear_specialized_variants import (
+    ResearchSpecialist, DevOpsSpecialist, ScoutCommander, 
+    ModelCoordinator, ToolCurator, IntegrationArchitect, LiveAPISpecialist
+)
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +246,20 @@ class AgentOrchestrator:
         # Analyze request to determine optimal agent strategy
         strategy = await self._analyze_request(message, page_context)
         
+        # Debug logging
+        logger.info(f"Strategy returned from _analyze_request: {strategy}")
+        logger.info(f"Strategy type: {type(strategy)}")
+        
+        if not strategy or not isinstance(strategy, dict):
+            logger.error(f"Invalid strategy returned: {strategy}")
+            strategy = self._fallback_strategy(page_context)
+            logger.info(f"Using fallback strategy: {strategy}")
+        
+        if 'type' not in strategy:
+            logger.error(f"Strategy missing 'type' key: {strategy}")
+            strategy = self._fallback_strategy(page_context)
+            logger.info(f"Using fallback strategy after missing type: {strategy}")
+        
         if strategy['type'] == 'simple_response':
             # Single agent can handle this
             agent = self.agents[strategy['primary_agent']]
@@ -304,9 +322,46 @@ class AgentOrchestrator:
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             try:
-                return json.loads(json_match.group())
-            except:
-                pass
+                parsed_response = json.loads(json_match.group())
+                
+                # Handle nested strategy format from AI
+                if 'strategy' in parsed_response and isinstance(parsed_response['strategy'], dict):
+                    strategy_obj = parsed_response['strategy']
+                    
+                    # Convert AI format to expected format
+                    if 'classification' in strategy_obj:
+                        # Map classification to type
+                        strategy_type = strategy_obj['classification']
+                        if strategy_type == 'simple_response':
+                            # Map handling_agent to primary_agent with fallback
+                            agent_name = strategy_obj.get('handling_agent', 'lead_developer')
+                            
+                            # Map AI agent names to actual agent names
+                            agent_mapping = {
+                                'GreetingAgent': 'research_specialist',
+                                'ResearchAgent': 'research_specialist', 
+                                'CodeAgent': 'lead_developer',
+                                'DeployAgent': 'devops_specialist'
+                            }
+                            
+                            primary_agent = agent_mapping.get(agent_name, 'research_specialist')
+                            
+                            return {
+                                'type': 'simple_response',
+                                'primary_agent': primary_agent
+                            }
+                        elif strategy_type == 'collaborative':
+                            return {
+                                'type': 'collaborative',
+                                'agents': strategy_obj.get('agents', ['research_specialist', 'lead_developer'])
+                            }
+                
+                # If it's already in the correct format, return it
+                if 'type' in parsed_response:
+                    return parsed_response
+                    
+            except Exception as e:
+                logger.warning(f"Failed to parse AI strategy response: {e}")
         
         # Fallback: analyze keywords in response
         if 'simple' in response.lower():
