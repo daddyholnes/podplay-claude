@@ -270,8 +270,6 @@ class EnhancedAgentOrchestrator:
             )
             
             self.collaboration_orchestrator = CollaborationOrchestrator(
-                self.model_manager,
-                self.memory,
                 self.workflow_intelligence
             )
             
@@ -715,6 +713,85 @@ class EnhancedAgentOrchestrator:
                 
             except Exception as e:
                 logger.error(f"System health monitor error: {e}")
+
+    async def enable_proactive_behaviors(self):
+        """Enable proactive agent behaviors for autonomous operation"""
+        
+        logger.info("🤖 Enabling proactive agent behaviors...")
+        
+        # Enable background monitoring and suggestions
+        self.proactive_behaviors_enabled = True
+        
+        # Start proactive task scheduling
+        asyncio.create_task(self._proactive_task_scheduler())
+        
+        # Enable agent initiative
+        for agent_id, agent in self.agents.items():
+            if hasattr(agent, 'enable_initiative'):
+                await agent.enable_initiative()
+        
+        logger.info("✅ Proactive behaviors enabled")
+    
+    async def enable_advanced_collaboration(self):
+        """Enable advanced multi-agent collaboration features"""
+        
+        logger.info("🤝 Enabling advanced collaboration features...")
+        
+        # Enable dynamic agent formation
+        self.advanced_collaboration_enabled = True
+        
+        # Start collaboration optimization
+        asyncio.create_task(self._optimize_collaboration())
+        
+        # Enable cross-agent learning
+        for agent_id, agent in self.agents.items():
+            if hasattr(agent, 'enable_cross_learning'):
+                await agent.enable_cross_learning()
+        
+        logger.info("✅ Advanced collaboration enabled")
+    
+    async def _proactive_task_scheduler(self):
+        """Background task to proactively schedule and suggest tasks"""
+        
+        while getattr(self, 'proactive_behaviors_enabled', False):
+            try:
+                await asyncio.sleep(60)  # Check every minute
+                
+                # Analyze recent patterns for proactive suggestions
+                # This would analyze user patterns and suggest helpful actions
+                
+                # Check for maintenance tasks
+                current_time = datetime.now()
+                
+                # Example: Suggest memory cleanup
+                if len(self.memory.memory_cache) > 100:
+                    logger.info("📝 Proactive suggestion: Memory consolidation recommended")
+                
+                # Example: Suggest performance optimization
+                active_sessions = len(self.collaboration_sessions)
+                if active_sessions > 5:
+                    logger.info("⚡ Proactive suggestion: Performance optimization available")
+                
+            except Exception as e:
+                logger.error(f"Proactive scheduler error: {e}")
+    
+    async def _optimize_collaboration(self):
+        """Background task to optimize agent collaboration"""
+        
+        while getattr(self, 'advanced_collaboration_enabled', False):
+            try:
+                await asyncio.sleep(300)  # Check every 5 minutes
+                
+                # Analyze collaboration patterns
+                for session_id, session in self.collaboration_sessions.items():
+                    if 'agents' in session:
+                        # Could implement collaboration optimization logic here
+                        agents_count = len(session['agents'])
+                        if agents_count > 3:
+                            logger.info(f"🎯 Optimizing collaboration session {session_id} with {agents_count} agents")
+                
+            except Exception as e:
+                logger.error(f"Collaboration optimizer error: {e}")
 
 class MamaBearAgent:
     """Enhanced base class for all Mama Bear agents"""

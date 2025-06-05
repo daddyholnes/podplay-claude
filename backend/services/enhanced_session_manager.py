@@ -87,7 +87,20 @@ class EnhancedSessionManager:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.memory = Memory(api_key=config.get("MEM0_API_KEY"))
+        
+        # Initialize Mem0 client properly
+        self.memory = None
+        try:
+            from mem0 import MemoryClient
+            mem0_api_key = config.get("MEM0_API_KEY")
+            if mem0_api_key:
+                self.memory = MemoryClient(api_key=mem0_api_key)
+                logger.info("✅ Session Manager Mem0 client initialized")
+            else:
+                logger.warning("⚠️ No MEM0_API_KEY provided for session manager")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize Mem0 client in session manager: {e}")
+            self.memory = None
         
         # Active session cache for performance
         self.active_sessions: Dict[str, EnhancedSession] = {}
@@ -394,6 +407,101 @@ class EnhancedSessionManager:
             logger.error(f"Error getting session stats: {e}")
             return {}
     
+    async def enable_intelligent_checkpointing(self):
+        """Enable intelligent automatic checkpointing for autonomous sessions"""
+        
+        logger.info("💾 Enabling intelligent checkpointing...")
+        
+        # Enable automatic checkpointing
+        self.intelligent_checkpointing_enabled = True
+        
+        # Start background checkpointing service
+        asyncio.create_task(self._intelligent_checkpointing_service())
+        
+        logger.info("✅ Intelligent checkpointing enabled")
+    
+    async def _intelligent_checkpointing_service(self):
+        """Background service for intelligent checkpointing"""
+        
+        while getattr(self, 'intelligent_checkpointing_enabled', False):
+            try:
+                await asyncio.sleep(300)  # Check every 5 minutes
+                
+                current_time = datetime.now()
+                
+                # Check all active sessions for checkpointing opportunities
+                for session_id, session in self.active_sessions.items():
+                    try:
+                        # Check if session needs checkpointing
+                        should_checkpoint = False
+                        
+                        # Time-based checkpointing (every 30 minutes for long-running tasks)
+                        if session.session_type == SessionType.LONG_RUNNING:
+                            last_checkpoint = session.created_at
+                            if session.checkpoints:
+                                last_checkpoint = max(cp.timestamp for cp in session.checkpoints)
+                            
+                            if (current_time - last_checkpoint) > timedelta(minutes=30):
+                                should_checkpoint = True
+                        
+                        # Progress-based checkpointing
+                        if session.progress_percentage > 0 and session.progress_percentage % 25 == 0:
+                            # Checkpoint at 25%, 50%, 75%, etc.
+                            should_checkpoint = True
+                        
+                        # State-change based checkpointing
+                        if session.state == SessionState.PAUSED:
+                            should_checkpoint = True
+                        
+                        if should_checkpoint:
+                            await self._create_intelligent_checkpoint(session)
+                    
+                    except Exception as e:
+                        logger.error(f"Error in intelligent checkpointing for session {session_id}: {e}")
+                
+            except Exception as e:
+                logger.error(f"Intelligent checkpointing service error: {e}")
+                await asyncio.sleep(60)
+    
+    async def _create_intelligent_checkpoint(self, session: EnhancedSession):
+        """Create an intelligent checkpoint with context analysis"""
+        
+        try:
+            # Analyze current state
+            checkpoint_data = {
+                'session_state': asdict(session),
+                'timestamp': datetime.now().isoformat(),
+                'progress_analysis': {
+                    'completion_percentage': session.progress_percentage,
+                    'key_milestones': session.milestones,
+                    'current_phase': 'autonomous_execution'
+                },
+                'context_snapshot': {
+                    'user_intent': getattr(session, 'user_intent', ''),
+                    'agent_states': getattr(session, 'agent_states', {}),
+                    'pending_actions': getattr(session, 'pending_actions', [])
+                }
+            }
+            
+            # Create checkpoint
+            checkpoint_id = f"checkpoint_{datetime.now().timestamp()}"
+            checkpoint = SessionCheckpoint(
+                checkpoint_id=checkpoint_id,
+                session_id=session.session_id,
+                timestamp=datetime.now(),
+                state_data=checkpoint_data,
+                progress_percentage=session.progress_percentage,
+                description=f"Intelligent checkpoint - {session.progress_percentage}% complete"
+            )
+            
+            # Store checkpoint
+            await self.create_checkpoint(session.session_id, checkpoint_data, checkpoint.description)
+            
+            logger.info(f"📸 Created intelligent checkpoint for session {session.session_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create intelligent checkpoint: {e}")
+
     # Private methods
     
     async def _store_session_to_mem0(self, session: EnhancedSession):

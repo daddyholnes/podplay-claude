@@ -371,6 +371,20 @@ class EnhancedMemoryManager:
         
         logger.info(f"Learned from feedback for interaction {interaction_id}")
     
+    async def enable_adaptive_learning(self):
+        """Enable adaptive learning capabilities for autonomous intelligence"""
+        
+        logger.info("🧠 Enabling adaptive learning...")
+        
+        # Enable learning systems
+        self.adaptive_learning_enabled = True
+        
+        # Start background learning processes
+        asyncio.create_task(self._adaptive_learning_service())
+        asyncio.create_task(self._pattern_analysis_service())
+        
+        logger.info("✅ Adaptive learning enabled")
+    
     # Private helper methods
     
     def _generate_memory_id(self, user_id: str, prefix: str) -> str:
@@ -597,7 +611,7 @@ class EnhancedMemoryManager:
         result['accessed_at'] = memory.accessed_at.isoformat()
         return result
     
-    async def _get_recent_memories(self, user_id: str, hours: int = 24, days: int = None, limit: int = 20) -> List[Dict[str, Any]]:
+    async def _get_recent_memories(self, user_id: str, hours: int = 24, days: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent memories for a user"""
         
         if days:
@@ -953,6 +967,243 @@ class EnhancedMemoryManager:
             profile.success_patterns[agent_id] = (1 - alpha) * current_pattern + alpha * (0.5 + feedback_factor * 0.5)
         
         await self._save_user_profile(profile)
+    
+    async def _adaptive_learning_service(self):
+        """Background service for adaptive learning from user interactions"""
+        
+        while getattr(self, 'adaptive_learning_enabled', False):
+            try:
+                await asyncio.sleep(600)  # Analyze every 10 minutes
+                
+                # Analyze recent interactions for learning patterns
+                recent_memories = []
+                cutoff_time = datetime.now() - timedelta(hours=1)
+                
+                for memory_list in self.memory_cache.values():
+                    for memory in memory_list:
+                        if memory.created_at and memory.created_at > cutoff_time:
+                            recent_memories.append(memory)
+                
+                if recent_memories:
+                    await self._extract_learning_insights(recent_memories)
+                
+            except Exception as e:
+                logger.error(f"Adaptive learning service error: {e}")
+                await asyncio.sleep(60)
+    
+    async def _pattern_analysis_service(self):
+        """Background service for analyzing user and agent patterns"""
+        
+        while getattr(self, 'adaptive_learning_enabled', False):
+            try:
+                await asyncio.sleep(1800)  # Analyze every 30 minutes
+                
+                # Analyze patterns across all users
+                all_patterns = {}
+                for user_id in self.user_profiles.keys():
+                    profile = self.user_profiles.get(user_id)
+                    if profile:
+                        all_patterns[user_id] = {
+                            'preferences': profile.learning_preferences,
+                            'success_patterns': profile.success_patterns,
+                            'interaction_history': profile.interaction_history[-10:]  # Last 10 interactions
+                        }
+                
+                # Extract global patterns
+                if all_patterns:
+                    global_insights = await self._analyze_global_patterns(all_patterns)
+                    await self._store_global_insights(global_insights)
+                
+            except Exception as e:
+                logger.error(f"Pattern analysis service error: {e}")
+                await asyncio.sleep(300)
+    
+    async def _extract_learning_insights(self, memories: List[MemoryRecord]):
+        """Extract learning insights from recent memories"""
+        
+        try:
+            insights = []
+            
+            # Group memories by user
+            user_memories = defaultdict(list)
+            for memory in memories:
+                user_memories[memory.user_id].append(memory)
+            
+            # Analyze each user's recent patterns
+            for user_id, user_memory_list in user_memories.items():
+                # Analyze conversation patterns
+                conversation_memories = [m for m in user_memory_list if m.type == MemoryType.CONVERSATION]
+                if len(conversation_memories) >= 3:
+                    # Look for recurring themes or preferences
+                    themes = self._extract_conversation_themes(conversation_memories)
+                    if themes:
+                        insight = {
+                            'type': 'user_preference_pattern',
+                            'user_id': user_id,
+                            'themes': themes,
+                            'confidence': min(len(conversation_memories) / 10.0, 1.0)
+                        }
+                        insights.append(insight)
+                
+                # Analyze success patterns
+                decision_memories = [m for m in user_memory_list if m.type == MemoryType.DECISION_PATTERN]
+                if decision_memories:
+                    success_patterns = self._analyze_decision_success(decision_memories)
+                    if success_patterns:
+                        insight = {
+                            'type': 'decision_success_pattern',
+                            'user_id': user_id,
+                            'patterns': success_patterns,
+                            'confidence': len(decision_memories) / 5.0
+                        }
+                        insights.append(insight)
+            
+            # Store insights
+            for insight in insights:
+                # Create memory record for the insight
+                memory_record = MemoryRecord(
+                    id=f"insight_{datetime.now().timestamp()}",
+                    type=MemoryType.LEARNING_INSIGHT,
+                    content=insight,
+                    user_id=insight['user_id'],
+                    importance=MemoryImportance.HIGH,
+                    tags=['adaptive_learning', 'insight'],
+                    created_at=datetime.now()
+                )
+                await self._store_memory(memory_record)
+            
+            logger.info(f"🎯 Extracted {len(insights)} learning insights")
+            
+        except Exception as e:
+            logger.error(f"Error extracting learning insights: {e}")
+    
+    def _extract_conversation_themes(self, memories: List[MemoryRecord]) -> List[str]:
+        """Extract common themes from conversation memories"""
+        
+        themes = []
+        try:
+            # Simple theme extraction based on content keywords
+            theme_keywords = defaultdict(int)
+            
+            for memory in memories:
+                content = memory.content
+                if 'user_message' in content:
+                    message = content['user_message'].lower()
+                    # Count key technical terms
+                    keywords = ['python', 'javascript', 'react', 'api', 'database', 'frontend', 'backend', 'deployment']
+                    for keyword in keywords:
+                        if keyword in message:
+                            theme_keywords[keyword] += 1
+            
+            # Return themes that appear in multiple conversations
+            themes = [theme for theme, count in theme_keywords.items() if count >= 2]
+            
+        except Exception as e:
+            logger.error(f"Error extracting themes: {e}")
+        
+        return themes
+    
+    def _analyze_decision_success(self, memories: List[MemoryRecord]) -> Dict[str, float]:
+        """Analyze success patterns in decision memories"""
+        
+        patterns = {}
+        try:
+            for memory in memories:
+                content = memory.content
+                if 'decision_type' in content and 'success' in content:
+                    decision_type = content['decision_type']
+                    success = content['success']
+                    
+                    if decision_type not in patterns:
+                        patterns[decision_type] = []
+                    patterns[decision_type].append(1.0 if success else 0.0)
+            
+            # Calculate success rates
+            success_rates = {}
+            for decision_type, successes in patterns.items():
+                if successes:
+                    success_rates[decision_type] = sum(successes) / len(successes)
+            
+            return success_rates
+            
+        except Exception as e:
+            logger.error(f"Error analyzing decision success: {e}")
+            return {}
+    
+    async def _analyze_global_patterns(self, all_patterns: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze patterns across all users to extract global insights"""
+        
+        global_insights = {
+            'common_preferences': {},
+            'successful_strategies': {},
+            'user_clusters': [],
+            'temporal_patterns': {}
+        }
+        
+        try:
+            # Find common preferences across users
+            preference_counts = defaultdict(int)
+            for user_id, patterns in all_patterns.items():
+                preferences = patterns.get('preferences', {})
+                for pref_key, pref_value in preferences.items():
+                    preference_counts[f"{pref_key}:{pref_value}"] += 1
+            
+            # Store preferences that appear in multiple users
+            total_users = len(all_patterns)
+            for pref, count in preference_counts.items():
+                if count >= max(2, total_users * 0.3):  # At least 30% of users
+                    global_insights['common_preferences'][pref] = count / total_users
+            
+            # Analyze successful strategies
+            strategy_success = defaultdict(list)
+            for user_id, patterns in all_patterns.items():
+                success_patterns = patterns.get('success_patterns', {})
+                for strategy, success_rate in success_patterns.items():
+                    strategy_success[strategy].append(success_rate)
+            
+            for strategy, rates in strategy_success.items():
+                if rates:
+                    global_insights['successful_strategies'][strategy] = {
+                        'average_success': sum(rates) / len(rates),
+                        'sample_size': len(rates)
+                    }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing global patterns: {e}")
+        
+        return global_insights
+    
+    async def _store_global_insights(self, insights: Dict[str, Any]):
+        """Store global insights for system-wide learning"""
+        
+        try:
+            # Store in Mem0 if available
+            if self.mem0_client:
+                await self.mem0_client.add(
+                    messages=[{
+                        "role": "system",
+                        "content": f"Global learning insights: {json.dumps(insights)}"
+                    }],
+                    user_id="system_global",
+                    metadata={
+                        "type": "global_insights",
+                        "timestamp": datetime.now().isoformat(),
+                        "insights_count": len(insights)
+                    }
+                )
+            
+            # Also store locally
+            insights_path = os.path.join(self.local_storage_path, "global_insights.json")
+            with open(insights_path, 'w') as f:
+                json.dump({
+                    'insights': insights,
+                    'timestamp': datetime.now().isoformat()
+                }, f, indent=2, default=str)
+            
+            logger.info("💡 Stored global learning insights")
+            
+        except Exception as e:
+            logger.error(f"Error storing global insights: {e}")
 
 # Integration function
 def initialize_enhanced_memory(mem0_client=None) -> EnhancedMemoryManager:
