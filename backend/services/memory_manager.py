@@ -7,6 +7,7 @@ Enhanced with Scout.new-level session management capabilities
 import asyncio
 import json
 import logging
+import re  # Import the re module for regular expressions
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 from mem0 import Memory
@@ -21,9 +22,8 @@ try:
     ENHANCED_SESSIONS_AVAILABLE = True
 except ImportError:
     ENHANCED_SESSIONS_AVAILABLE = False
-    logger.warning("Enhanced session management not available")
-
-logger = logging.getLogger(__name__)
+    
+logger = logging.getLogger(__name__) # Move logger initialization to top
 
 class MemoryManager:
     """Manages persistent memory for the Podplay Sanctuary using Mem0"""
@@ -202,8 +202,14 @@ class MemoryManager:
             # Process and enrich memories
             processed_memories = []
             for memory in memories:
+                if not isinstance(memory, dict):
+                    logger.warning(f"Unexpected memory format (not a dict): {memory}. Skipping.")
+                    continue
+
+                # Mem0 search results have 'text' and 'metadata' as top-level keys for memory content and associated metadata.
+                # 'score' is also a top-level key.
                 processed_memory = {
-                    'content': memory.get('memory', ''),
+                    'content': memory.get('text', ''),
                     'metadata': memory.get('metadata', {}),
                     'score': memory.get('score', 0.0),
                     'timestamp': memory.get('metadata', {}).get('timestamp'),
@@ -230,7 +236,13 @@ class MemoryManager:
             
             # Process conversation memories
             conversations = []
+            # Process conversation memories
+            conversations = []
             for memory in memories:
+                if not isinstance(memory, dict):
+                    logger.warning(f"Unexpected memory format (not a dict) in conversation history: {memory}. Skipping.")
+                    continue
+                
                 metadata = memory.get('metadata', {})
                 conversation = {
                     'user_message': '',
@@ -241,21 +253,29 @@ class MemoryManager:
                     'theme': metadata.get('sanctuary_theme', 'sky')
                 }
                 
-                # Extract messages from memory content
-                memory_content = memory.get('memory', '')
-                if 'User:' in memory_content and 'Assistant:' in memory_content:
-                    parts = memory_content.split('Assistant:', 1)
-                    user_part = parts[0].replace('User:', '').strip()
-                    assistant_part = parts[1].strip() if len(parts) > 1 else ''
-                    
-                    conversation['user_message'] = user_part
-                    conversation['assistant_response'] = assistant_part
+                # Extract messages from memory content (Mem0 stores messages as a list of dicts)
+                messages_list = memory.get('messages', [])
+                
+                user_message = ""
+                assistant_response = ""
+                
+                for msg in messages_list:
+                    if not isinstance(msg, dict):
+                        logger.warning(f"Unexpected message format (not a dict): {msg}. Skipping.")
+                        continue
+                    if msg.get("role") == "user":
+                        user_message = msg.get("content", "")
+                    elif msg.get("role") == "assistant":
+                        assistant_response = msg.get("content", "")
+
+                conversation['user_message'] = user_message
+                conversation['assistant_response'] = assistant_response
                 
                 conversations.append(conversation)
             
             # Sort by timestamp (most recent first)
-            conversations.sort(key=lambda x: x['timestamp'] or '', reverse=True)
-            
+            conversations.sort(key=lambda x: x.get('timestamp') or '', reverse=True)
+
             return conversations
             
         except Exception as e:
@@ -278,16 +298,45 @@ class MemoryManager:
             }
             
             for memory in memories:
+                if not isinstance(memory, dict):
+                    logger.warning(f"Unexpected memory format (not a dict) in user preferences: {memory}. Skipping.")
+                    continue
+
                 metadata = memory.get('metadata', {})
-                memory_content = memory.get('memory', '')
                 
+                # Mem0 stores messages in a list of dicts. Reconstruct full content from these messages.
+                messages_list = memory.get('messages', [])
+                memory_content = ""
+                for msg_obj in messages_list:
+                    if isinstance(msg_obj, dict) and 'content' in msg_obj:
+                         memory_content += msg_obj['content'] + " "
+                memory_content = memory_content.strip()
+
                 # Try to extract preferences from memory content
                 try:
                     if 'preferences updated:' in memory_content.lower():
-                        pref_json = memory_content.split(':', 1)[1].strip()
-                        extracted_prefs = json.loads(pref_json)
-                        preferences.update(extracted_prefs)
-                except (json.JSONDecodeError, IndexError):
+                        # Use regex to find the JSON string. Mem0's add method wraps dicts in json.dumps
+                        # so we need to account for escaped quotes if that's how it's stored in 'content'.
+                        # Search for a pattern that looks like a JSON object.
+                        json_match = re.search(r'(\{.*\})', memory_content)
+                        if json_match:
+                            pref_json_str = json_match.group(1)
+                            # Attempt to load, if it fails, it might be double-escaped
+                            try:
+                                extracted_prefs = json.loads(pref_json_str)
+                            except json.JSONDecodeError:
+                                # If direct load fails, try loading it as a string that might be unescaped later
+                                pref_json_str = pref_json_str.replace('\\"', '"') # Unescape quotes
+                                extracted_prefs = json.loads(pref_json_str)
+
+                            preferences.update(extracted_prefs)
+                        else:
+                            logger.warning(f"Could not find valid JSON in preferences memory content for {metadata.get('memory_id', 'unknown')}: {memory_content}")
+                except json.JSONDecodeError as json_e:
+                    logger.error(f"JSON decode error in get_user_preferences for memory {metadata.get('memory_id', 'unknown')}: {json_e}. Content: {memory_content[:150]}...")
+                    continue
+                except Exception as ex:
+                    logger.error(f"Unexpected error in get_user_preferences for memory {metadata.get('memory_id', 'unknown')}: {ex}. Content: {memory_content[:150]}...")
                     continue
             
             return preferences
@@ -313,6 +362,10 @@ class MemoryManager:
             }
             
             for memory in memories:
+                if not isinstance(memory, dict):
+                    logger.warning(f"Unexpected memory format (not a dict) in project context: {memory}. Skipping.")
+                    continue
+
                 metadata = memory.get('metadata', {})
                 project_info = {
                     'name': metadata.get('project_name', 'Unknown'),
@@ -323,20 +376,41 @@ class MemoryManager:
                 
                 # Try to parse tech stack
                 try:
-                    tech_stack = json.loads(metadata.get('tech_stack', '[]'))
+                    tech_stack_raw = metadata.get('tech_stack', '[]')
+                    # Mem0 stores JSON strings for dicts/lists within metadata, so we need to load them.
+                    if isinstance(tech_stack_raw, str):
+                        tech_stack = json.loads(tech_stack_raw)
+                    else:
+                        tech_stack = tech_stack_raw # Already the correct type
+                    
                     project_info['tech_stack'] = tech_stack
-                    project_context['tech_stacks'].extend(tech_stack)
-                except json.JSONDecodeError:
+                    if isinstance(tech_stack, list):
+                        project_context['tech_stacks'].extend(tech_stack)
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f"Could not decode tech_stack for memory {memory.get('id', 'unknown')}: {tech_stack_raw}. Error: {e}")
+                    project_info['tech_stack'] = []
+                except Exception as e:
+                    logger.error(f"Unexpected error processing tech_stack for memory {memory.get('id', 'unknown')}: {e}")
                     project_info['tech_stack'] = []
                 
                 project_context['recent_projects'].append(project_info)
             
+            # Sort recent projects by timestamp
+            project_context['recent_projects'].sort(
+                key=lambda x: x.get('timestamp') or '', reverse=True
+            )
+
             # Set current project (most recent)
             if project_context['recent_projects']:
                 project_context['current_project'] = project_context['recent_projects'][0]
             
-            # Remove duplicates from tech stacks
-            project_context['tech_stacks'] = list(set(project_context['tech_stacks']))
+            # Use a set to collect unique tech stacks from all projects, ensuring they are strings before adding.
+            unique_tech_stacks = set()
+            for proj in project_context['recent_projects']:
+                for item in proj.get('tech_stack', []):
+                    if isinstance(item, str):
+                        unique_tech_stacks.add(item)
+            project_context['tech_stacks'] = list(unique_tech_stacks)
             
             return project_context
             
@@ -356,8 +430,12 @@ class MemoryManager:
             
             results = []
             for memory in memories:
+                if not isinstance(memory, dict):
+                    logger.warning(f"Unexpected memory format (not a dict) in search memories: {memory}. Skipping.")
+                    continue
+
                 result = {
-                    'content': memory.get('memory', ''),
+                    'content': memory.get('text', ''),
                     'metadata': memory.get('metadata', {}),
                     'relevance_score': memory.get('score', 0.0),
                     'category': memory.get('metadata', {}).get('category', 'unknown'),
@@ -444,6 +522,11 @@ class MemoryManager:
             timestamps = []
             
             for memory in memories:
+                if not isinstance(memory, dict):
+                    logger.warning(f"Unexpected memory format (not a dict) in memory stats: {memory}. Skipping.")
+                    continue
+                
+                # Mem0 returns the full memory object structure here, which should be a dict.
                 metadata = memory.get('metadata', {})
                 category = metadata.get('category', 'unknown')
                 timestamp = metadata.get('timestamp')

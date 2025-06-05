@@ -1,9 +1,0 @@
-{
-  "name": "Podplay Sanctuary",
-  "description": "A multifaceted AI interaction platform with theme selection, modular pages for different AI tasks, and a central Mama Bear AI assistant.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ],
-  "prompt": ""
-}

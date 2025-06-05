@@ -43,11 +43,11 @@ class MemoryRecord:
     user_id: str
     agent_id: Optional[str] = None
     importance: MemoryImportance = MemoryImportance.MEDIUM
-    tags: List[str] = None
-    created_at: datetime = None
-    accessed_at: datetime = None
+    tags: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
+    accessed_at: Optional[datetime] = None
     access_count: int = 0
-    related_memories: List[str] = None
+    related_memories: Optional[List[str]] = None
     embedding: Optional[List[float]] = None
     
     def __post_init__(self):
@@ -65,13 +65,13 @@ class UserProfile:
     """Comprehensive user profile built from interactions"""
     user_id: str
     expertise_level: str = "intermediate"
-    preferred_agents: List[str] = None
-    communication_style: Dict[str, float] = None
-    project_history: List[Dict] = None
-    success_patterns: Dict[str, float] = None
-    learning_preferences: Dict[str, Any] = None
+    preferred_agents: Optional[List[str]] = None
+    communication_style: Optional[Dict[str, float]] = None
+    project_history: Optional[List[Dict]] = None
+    success_patterns: Optional[Dict[str, float]] = None
+    learning_preferences: Optional[Dict[str, Any]] = None
     context_retention_days: int = 30
-    last_updated: datetime = None
+    last_updated: Optional[datetime] = None
     
     def __post_init__(self):
         if self.preferred_agents is None:
@@ -129,11 +129,11 @@ class EnhancedMemoryManager:
         os.makedirs(f"{self.local_storage_path}/profiles", exist_ok=True)
         os.makedirs(f"{self.local_storage_path}/patterns", exist_ok=True)
     
-    async def save_interaction(self, user_id: str, message: str, response: str, metadata: Dict[str, Any] = None):
+    async def save_interaction(self, user_id: str, message: str, response: str, metadata: Optional[Dict[str, Any]] = None):
         """Save a complete interaction with rich context"""
         
         if metadata is None:
-            metadata = {}
+            metadata = {} # Ensure metadata is a dict if None is passed
         
         # Create memory record
         memory_id = self._generate_memory_id(user_id, 'interaction')
@@ -163,7 +163,6 @@ class EnhancedMemoryManager:
             tags=await self._generate_tags(interaction_data)
         )
         
-        # Save to memory
         await self._store_memory(memory_record)
         
         # Update user profile
@@ -181,7 +180,7 @@ class EnhancedMemoryManager:
         
         logger.debug(f"Saved interaction memory {memory_id} for user {user_id}")
     
-    async def get_relevant_context(self, user_id: str, query: str, agent_id: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+    async def get_relevant_context(self, user_id: str, query: str, agent_id: Optional[str] = None, limit: int = 5) -> List[Dict[str, Any]]:
         """Get relevant context for a query using semantic similarity and recency"""
         
         # Get query embedding (placeholder - would use actual embedding model)
@@ -200,12 +199,19 @@ class EnhancedMemoryManager:
             candidates.extend(similar_memories)
         
         # Agent-specific context
-        if agent_id:
+        if agent_id: # Only call if agent_id is provided
             agent_memories = await self._get_agent_specific_memories(user_id, agent_id, limit=10)
             candidates.extend(agent_memories)
         
         # Remove duplicates and rank
         unique_candidates = {m['id']: m for m in candidates}.values()
+        
+        # Ensure 'created_at' is present for ranking
+        for mem in unique_candidates:
+            if 'created_at' not in mem:
+                mem['created_at'] = datetime.now().isoformat() # Provide a default if missing
+
+
         ranked_memories = await self._rank_memories_by_relevance(query, list(unique_candidates))
         
         return ranked_memories[:limit]
@@ -265,12 +271,8 @@ class EnhancedMemoryManager:
     async def get_user_patterns(self, user_id: str) -> Dict[str, Any]:
         """Get learned patterns for a user"""
         
-        if user_id in self.user_profiles:
-            profile = self.user_profiles[user_id]
-        else:
-            profile = await self._load_user_profile(user_id)
-        
-        # Analyze recent patterns
+        profile = await self._load_user_profile(user_id)
+
         recent_interactions = await self._get_recent_memories(user_id, days=7)
         patterns = await self._analyze_interaction_patterns(recent_interactions)
         
@@ -317,7 +319,7 @@ class EnhancedMemoryManager:
         
         return patterns
     
-    async def get_recent_conversations(self, user_id: str = None, agent_id: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_recent_conversations(self, user_id: Optional[str] = None, agent_id: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent conversations with optional filtering"""
         
         memories = []
@@ -327,7 +329,8 @@ class EnhancedMemoryManager:
             for memory_id in reversed(user_memories[-limit*2:]):  # Get more than needed for filtering
                 memory = await self._load_memory(memory_id)
                 if memory and memory.type == MemoryType.CONVERSATION:
-                    if agent_id is None or memory.agent_id == agent_id:
+                    # Check agent_id only if it's not None
+                    if agent_id is None or (memory.agent_id is not None and memory.agent_id == agent_id):
                         memories.append(self._memory_to_dict(memory))
                         if len(memories) >= limit:
                             break
@@ -381,7 +384,6 @@ class EnhancedMemoryManager:
             'improvement_suggestions': await self._generate_improvement_suggestions(memory.content, feedback)
         }
         
-        # Save as learning insight
         insight_id = self._generate_memory_id(memory.user_id, 'learning')
         insight_record = MemoryRecord(
             id=insight_id,
@@ -395,7 +397,6 @@ class EnhancedMemoryManager:
         
         await self._store_memory(insight_record)
         
-        # Update success patterns
         await self._update_success_patterns(memory.user_id, memory.content, feedback)
         
         logger.info(f"Learned from feedback for interaction {interaction_id}")
@@ -454,15 +455,17 @@ class EnhancedMemoryManager:
         """Update memory indices for fast retrieval"""
         
         # Tag index
-        for tag in memory.tags:
-            self.memory_index[tag].append(memory.id)
+        if memory.tags is not None:
+            for tag in memory.tags:
+                self.memory_index[tag].append(memory.id)
         
         # User index
         self.user_memory_index[memory.user_id].append(memory.id)
         
         # Temporal index
-        date_key = memory.created_at.strftime("%Y-%m-%d")
-        self.temporal_index[date_key].append(memory.id)
+        if memory.created_at is not None:
+            date_key = memory.created_at.strftime("%Y-%m-%d")
+            self.temporal_index[date_key].append(memory.id)
     
     async def _analyze_sentiment(self, text: str) -> Dict[str, float]:
         """Analyze sentiment of text (placeholder for actual implementation)"""
@@ -600,8 +603,8 @@ class EnhancedMemoryManager:
                 'user_id': memory_record.user_id,
                 'agent_id': memory_record.agent_id,
                 'importance': memory_record.importance.value,
-                'tags': memory_record.tags,
-                'created_at': memory_record.created_at.isoformat()
+                'tags': memory_record.tags if memory_record.tags is not None else [],
+                'created_at': memory_record.created_at.isoformat() if memory_record.created_at else None
             }
         }
         
@@ -614,24 +617,25 @@ class EnhancedMemoryManager:
         """Convert memory record to dictionary"""
         
         result = asdict(memory)
-        result['created_at'] = memory.created_at.isoformat()
-        result['accessed_at'] = memory.accessed_at.isoformat()
+        result['created_at'] = memory.created_at.isoformat() if memory.created_at else None
+        result['accessed_at'] = memory.accessed_at.isoformat() if memory.accessed_at else None
         return result
     
-    async def _get_recent_memories(self, user_id: str, hours: int = 24, days: int = None, limit: int = 20) -> List[Dict[str, Any]]:
+    async def _get_recent_memories(self, user_id: str, hours: int = 24, days: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent memories for a user"""
         
-        if days:
-            cutoff = datetime.now() - timedelta(days=days)
-        else:
-            cutoff = datetime.now() - timedelta(hours=hours)
+        time_delta = timedelta(hours=hours)
+        if days is not None: # Use is not None for checking Optional[int]
+            time_delta = timedelta(days=days)
+        
+        cutoff = datetime.now() - time_delta
         
         recent_memories = []
         user_memory_ids = self.user_memory_index.get(user_id, [])
         
         for memory_id in reversed(user_memory_ids):  # Most recent first
             memory = await self._load_memory(memory_id)
-            if memory and memory.created_at >= cutoff:
+            if memory and memory.created_at is not None and memory.created_at >= cutoff:
                 recent_memories.append(self._memory_to_dict(memory))
                 if len(recent_memories) >= limit:
                     break
@@ -745,13 +749,15 @@ class EnhancedMemoryManager:
         agent_id = interaction_data.get('agent_id')
         success = interaction_data.get('success', True)
         if agent_id and success:
-            if agent_id not in profile.preferred_agents:
-                profile.preferred_agents.append(agent_id)
+            if profile.preferred_agents is not None:
+                if agent_id not in profile.preferred_agents:
+                    profile.preferred_agents.append(agent_id)
         
         # Update communication style
         sentiment = interaction_data.get('sentiment', {})
         if sentiment.get('positive', 0) > 0.5:
-            profile.communication_style['formality'] = max(0, profile.communication_style['formality'] - 0.05)
+            if profile.communication_style is not None:
+                profile.communication_style['formality'] = max(0, profile.communication_style['formality'] - 0.05)
         
         # Save updated profile
         await self._save_user_profile(profile)
@@ -819,9 +825,10 @@ class EnhancedMemoryManager:
             # Find patterns in successful interactions
             successful_agents = [m['agent_id'] for m in successful_interactions if m.get('agent_id')]
             for agent in set(successful_agents):
-                if agent not in profile.success_patterns:
-                    profile.success_patterns[agent] = 0
-                profile.success_patterns[agent] += successful_agents.count(agent) / len(successful_interactions)
+                if profile.success_patterns is not None:
+                    if agent not in profile.success_patterns:
+                        profile.success_patterns[agent] = 0
+                    profile.success_patterns[agent] += successful_agents.count(agent) / len(successful_interactions)
         
         await self._save_user_profile(profile)
     
@@ -851,3 +858,124 @@ def initialize_enhanced_memory(mem0_client=None) -> EnhancedMemoryManager:
     logger.info("🧠 Enhanced Mama Bear Memory System initialized!")
     
     return memory_manager
+
+# Public methods required by CompleteEnhancedIntegration (stubs)
+    async def get_enhanced_context(self, user_id: str, session_id: str, include_patterns: bool = True, include_learning_insights: bool = True) -> Dict[str, Any]:
+        """Stub: Get enhanced context for autonomous agent"""
+        
+        context = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "current_time": datetime.now().isoformat(),
+            "recent_interactions": await self.get_recent_conversations(user_id=user_id, limit=5)
+        }
+        if include_patterns:
+            context["user_patterns"] = await self.get_user_patterns(user_id)
+        if include_learning_insights:
+            context["learning_insights"] = {"example_insight": "User prefers concise answers", "type": "stub"}
+        return context
+
+    async def save_enhanced_interaction(self, user_id: str, session_id: str, message: str, response: Dict[str, Any], metadata: Dict[str, Any]) -> str:
+        """Stub: Save enhanced interaction with full metadata for autonomous learning"""
+        
+        full_metadata = metadata.copy()
+        full_metadata.update({
+            "session_id": session_id,
+            "message_length": len(message),
+            "response_length": len(str(response)),
+            "autonomous_processing_details": response.get('autonomous_features', {})
+        })
+        
+        response_content = response.get('response', {}).get('content', '')
+        await self.save_interaction(user_id, message, response_content, full_metadata)
+        logger.info(f"Stub: Saved enhanced interaction for user {user_id} in session {session_id}")
+        return self._generate_memory_id(user_id, 'enhanced_interaction')
+    
+    async def enable_adaptive_learning(self):
+        """Stub: Enable adaptive learning features"""
+        logger.info("Stub: Adaptive learning features enabled.")
+
+    async def get_system_health(self) -> Dict[str, Any]:
+        """Stub: Return system health status for EnhancedMemoryManager."""
+        return {
+            "status": "healthy",
+            "message": "Enhanced Memory Manager is operational",
+            "mem0_client_connected": self.mem0_client is not None,
+            "cache_size": len(self.memory_cache),
+            "local_storage_path": self.local_storage_path
+        }
+
+    # Private methods for pattern analysis and learning (stubs)
+    async def _analyze_interaction_patterns(self, interactions: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Stub: Analyze interaction patterns from a list of interactions"""
+        if not interactions:
+            return {"frequency": {}, "sentiment_trends": {}}
+        
+        patterns = {
+            "most_common_agent": None,
+            "average_satisfaction": sum(i['content'].get('satisfaction_score', 0) for i in interactions if 'content' in i),
+            "total_successful_interactions": sum(1 for i in interactions if 'content' in i and i['content'].get('success', True))
+        }
+        
+        agent_counts = defaultdict(int)
+        for i in interactions:
+            if 'content' in i and i['content'].get('agent_id'):
+                agent_counts[i['content']['agent_id']] += 1
+        
+        if agent_counts:
+            # Fix for max() overload error: Provide a default value for key function
+            patterns["most_common_agent"] = max(agent_counts, key=lambda k: agent_counts.get(k, 0))
+        
+        return patterns
+
+    async def _get_common_topics(self, user_id: str) -> Dict[str, float]:
+        """Stub: Get common topics discussed by the user"""
+        return {"coding": 0.7, "development": 0.6, "research": 0.4}
+
+    async def _get_collaboration_preferences(self, user_id: str) -> Dict[str, Any]:
+        """Stub: Get user's collaboration preferences"""
+        return {"preferred_mode": "asynchronous", "preferred_tools": ["slack", "github"]}
+
+    async def _track_learning_progression(self, user_id: str) -> Dict[str, Any]:
+        """Stub: Track user's learning progression"""
+        return {"sessions_completed": 5, "new_concepts_learned": 3, "skill_increase_estimate": 0.15}
+
+    async def _extract_learning_points(self, content: Dict[str, Any], feedback: Dict[str, Any]) -> List[str]:
+        """Stub: Extract specific learning points from interaction and feedback"""
+        learning_points = []
+        if "clarity" in feedback.get("areas_for_improvement", ""):
+            learning_points.append("Improve clarity of explanations.")
+        if "accuracy" in feedback.get("areas_for_improvement", ""):
+            learning_points.append("Enhance factual accuracy of responses.")
+        return learning_points
+
+    async def _generate_improvement_suggestions(self, content: Dict[str, Any], feedback: Dict[str, Any]) -> List[str]:
+        """Stub: Generate suggestions for improvement based on interaction and feedback"""
+        suggestions = []
+        if "too verbose" in feedback.get("comments", "").lower():
+            suggestions.append("Be more concise in responses.")
+        if content.get("complexity_score", 0) > 7 and feedback.get("satisfaction_score", 0) < 3:
+            suggestions.append("Break down complex topics more effectively.")
+        return suggestions
+    
+    async def _update_success_patterns(self, user_id: str, content: Dict[str, Any], feedback: Dict[str, Any]):
+        """Stub: Update success patterns based on interaction and feedback"""
+        
+        profile = await self._load_user_profile(user_id)
+        if profile.success_patterns is None:
+            profile.success_patterns = {}
+
+        agent_id = content.get('agent_id', 'unknown')
+        success_score = feedback.get('satisfaction_score', None)
+        
+        if success_score is not None:
+            # Simple update: if successful, increment / average score
+            if agent_id not in profile.success_patterns:
+                profile.success_patterns[agent_id] = {'count': 0, 'total_score': 0}
+            
+            profile.success_patterns[agent_id]['count'] += 1
+            profile.success_patterns[agent_id]['total_score'] += success_score
+            
+            logger.info(f"Stub: Updated success pattern for agent {agent_id} for user {user_id}")
+        
+        await self._save_user_profile(profile)

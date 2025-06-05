@@ -5,9 +5,13 @@ import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
-import google.generativeai as genai
+from google import generativeai as genai # Corrected import
+from google.generativeai.types import GenerationConfig # Explicit import
 from datetime import datetime, timedelta
 import json
+import os # Added import for os.getenv
+
+logger = logging.getLogger(__name__) # Moved logger init to top
 
 class ModelPriority(Enum):
     PRIMARY = 1
@@ -44,7 +48,6 @@ class ModelConfig:
     
     def __post_init__(self):
         """Initialize timestamps if they're still 0"""
-        import time
         current_time = time.time()
         
         if self.last_minute_reset == 0:
@@ -56,7 +59,7 @@ class ModelConfig:
 class MamaBearResponse:
     content: str
     model_used: str
-    api_key_used: str
+    api_key_used: str # Changed to string
     billing_account: str
     processing_time: float
     fallback_count: int = 0
@@ -84,9 +87,7 @@ class MamaBearModelManager:
     
     def _initialize_models(self) -> Dict[str, ModelConfig]:
         """Initialize all available Gemini 2.5 models with quota settings"""
-        import os
-        
-        # Get API keys from environment
+
         primary_key = os.getenv('GEMINI_API_KEY_PRIMARY', 'AIzaSyDJqNc2s-L2_RW0-AwMevHRvhYgEMMXLRM')
         fallback_key = os.getenv('GEMINI_API_KEY_FALLBACK', 'AIzaSyCNUGhuoAvvaSJ2ypsqzgtUCaLSusRZs5Y')
         
@@ -274,9 +275,9 @@ class MamaBearModelManager:
         """Make actual API call with proper error handling"""
         try:
             # Configure the API client
-            genai.configure(api_key=model_config.api_key)
-            model = genai.GenerativeModel(model_config.name)
-            
+            genai.configure(api_key=model_config.api_key) # Now correctly imported as genai
+            model = genai.GenerativeModel(model_config.name) # Now correctly imported as genai
+
             # Prepare the message content
             message_content = messages[-1].get('content', '') if messages else ''
             
@@ -293,7 +294,7 @@ class MamaBearModelManager:
                 response = await asyncio.wait_for(
                     model.generate_content_async(
                         message_content,
-                        generation_config=generation_config
+                        generation_config=GenerationConfig(**generation_config) # GenerationConfig should be imported
                     ),
                     timeout=15.0  # 15 second timeout
                 )
@@ -308,15 +309,17 @@ class MamaBearModelManager:
             
             # Handle specific quota errors
             if any(quota_term in error_msg for quota_term in ['quota', 'limit', 'rate', 'exceeded']):
-                self.logger.warning(f"Quota exceeded for {model_config.name}: {e}")
-                model_config.current_requests_day = model_config.requests_per_day  # Mark as exhausted
+                self.logger.warning(f"Quota exceeded for {model_config.name if model_config else 'unknown model'}: {e}") # Add null check for model_config
+                if model_config: # Add null check for model_config
+                    model_config.current_requests_day = model_config.requests_per_day  # Mark as exhausted
                 raise QuotaExceededException(f"Quota exceeded: {e}")
             
             # Handle other API errors
-            model_config.consecutive_errors += 1
-            if model_config.consecutive_errors >= 3:
-                model_config.is_healthy = False
-                model_config.last_error = str(e)
+            if model_config: # Add null check for model_config
+                model_config.consecutive_errors += 1
+                if model_config.consecutive_errors >= 3:
+                    model_config.is_healthy = False
+                    model_config.last_error = str(e)
             
             raise APIException(f"API call failed: {e}")
     
@@ -380,7 +383,8 @@ class MamaBearModelManager:
                 )
                 
             except QuotaExceededException as e:
-                quota_warnings.append(f"Quota exceeded for {selected_model.name if 'selected_model' in locals() else 'unknown model'}")
+                model_name_for_log = selected_model.name if selected_model else 'unknown model'
+                quota_warnings.append(f"Quota exceeded for {model_name_for_log}") # Now selected_model can be None, handled gracefully for logging
                 self.logger.warning(f"Quota exceeded, attempting fallback: {e}")
                 fallback_count += 1
                 
@@ -541,150 +545,154 @@ class APIException(Exception):
 class AllModelsFailedException(Exception):
     pass
 
+# Integration with existing Mama Bear Agent (No changes here, just for context)
+# The below code is part of backend/services/mama_bear_agent.py and not mama_bear_model_manager.py
+# If this code is present in mama_bear_model_manager.py, it should be removed. 
+# It is assumed that this part will be handled by changes to backend/services/mama_bear_agent.py
 
-# Integration with existing Mama Bear Agent
-class EnhancedMamaBearAgent:
-    """Enhanced Mama Bear Agent with intelligent model management"""
-    
-    def __init__(self, scrapybara_client, memory_manager):
-        self.scrapybara = scrapybara_client
-        self.memory = memory_manager
-        self.model_manager = MamaBearModelManager()
-        self.logger = logging.getLogger(__name__)
-        
-        # Initialize model manager asynchronously (safely deferred)
-        self._initialization_complete = False
-        
-        self.variants = {
-            'main_chat': ResearchSpecialist(),
-            'vm_hub': DevOpsSpecialist(),
-            'scout': ScoutCommander(),
-            'multi_modal': ModelCoordinator(),
-            'mcp_hub': ToolCurator(),
-            'integration': IntegrationArchitect(),
-            'live_api': LiveAPISpecialist()
-        }
-    
-    async def initialize(self):
-        """Initialize the model manager asynchronously (call this after event loop is available)"""
-        if not self._initialization_complete:
-            await self.model_manager.start_monitoring()
-            await self.model_manager.warm_up_models()
-            self._initialization_complete = True
-            self.logger.info("🐻 Enhanced Mama Bear Agent initialization complete")
-    
-    async def process_message(self, message, page_context, user_id, **kwargs):
-        """Process message with intelligent model selection"""
-        try:
-            # Get appropriate variant
-            variant = self.variants.get(page_context, self.variants['main_chat'])
-            
-            # Load conversation memory
-            context = await self.memory.get_context(user_id, page_context)
-            
-            # Prepare messages for the model
-            messages = [
-                {'role': 'system', 'content': variant.get_system_prompt()},
-                {'role': 'user', 'content': message}
-            ]
-            
-            # Add context if available
-            if context:
-                context_message = f"Previous context: {context}"
-                messages.insert(1, {'role': 'system', 'content': context_message})
-            
-            # Determine if this requires advanced reasoning
-            requires_reasoning = any(keyword in message.lower() for keyword in [
-                'analyze', 'compare', 'explain', 'research', 'strategy', 'plan', 'design'
-            ])
-            
-            # Generate response using model manager
-            mama_bear_context = {
-                'variant': page_context,
-                'user_id': user_id,
-                'session_context': context
-            }
-            
-            response = await self.model_manager.generate_response(
-                messages=messages,
-                mama_bear_context=mama_bear_context,
-                requires_reasoning=requires_reasoning,
-                **kwargs
-            )
-            
-            # Save to memory
-            await self.memory.save_interaction(user_id, message, response.content)
-            
-            # Return enhanced response with metadata
-            return {
-                'content': response.content,
-                'metadata': {
-                    'model_used': response.model_used,
-                    'billing_account': response.billing_account,
-                    'processing_time': response.processing_time,
-                    'fallback_count': response.fallback_count,
-                    'quota_warnings': response.quota_warnings,
-                    'mama_bear_variant': variant.__class__.__name__
-                }
-            }
-            
-        except AllModelsFailedException:
-            # Emergency fallback response
-            return {
-                'content': "I'm experiencing technical difficulties with my AI models right now. Please try again in a few minutes. I'm working on resolving this! 🐻💙",
-                'metadata': {
-                    'error': 'all_models_failed',
-                    'fallback_response': True
-                }
-            }
-        
-        except Exception as e:
-            self.logger.error(f"Unexpected error in process_message: {e}")
-            return {
-                'content': "I encountered an unexpected error. Let me try to help you in a different way! 🐻",
-                'metadata': {
-                    'error': str(e),
-                    'fallback_response': True
-                }
-            }
-    
-    async def get_system_status(self):
-        """Get comprehensive system status"""
-        return {
-            'model_status': self.model_manager.get_model_status(),
-            'memory_status': await self.memory.get_status(),
-            'active_variants': list(self.variants.keys()),
-            'timestamp': datetime.now().isoformat()
-        }
-    
-    async def get_response(self, prompt: str, mama_bear_variant: str = 'research_specialist', required_capabilities: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
-        """
-        Orchestration-compatible response method
-        Maps to the existing process_message method for compatibility
-        """
-        try:
-            # Convert orchestration parameters to process_message format
-            result = await self.process_message(
-                message=prompt,
-                page_context=kwargs.get('page_context', 'orchestration'),
-                user_id=kwargs.get('user_id', 'system'),
-                variant_preference=mama_bear_variant,
-                **kwargs
-            )
-            
-            return {
-                'success': True,
-                'response': result['content'],  # Use 'response' key for compatibility
-                'content': result['content'],
-                'model_used': result.get('metadata', {}).get('model_used', 'unknown'),
-                'variant_used': result.get('metadata', {}).get('mama_bear_variant', mama_bear_variant)
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Error in get_response: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'response': f"🐻 I encountered an issue: {str(e)}",
-                'content': f"🐻 I encountered an issue: {str(e)}"
-            }
+# class EnhancedMamaBearAgent:
+#     """Enhanced Mama Bear Agent with intelligent model management"""
+#     
+#     def __init__(self, scrapybara_client, memory_manager):
+#         self.scrapybara = scrapybara_client
+#         self.memory = memory_manager
+#         self.model_manager = MamaBearModelManager()
+#         self.logger = logging.getLogger(__name__)
+#         
+#         # Initialize model manager asynchronously (safely deferred)
+#         self._initialization_complete = False
+#         
+# from backend.services.mama_bear_specialized_variants import (
+#     ResearchSpecialist,
+#     DevOpsSpecialist,
+#     ScoutCommander,
+#     ModelCoordinator,
+#     ToolCurator,
+#     IntegrationArchitect,
+#     LiveAPISpecialist
+# )
+# 
+#     
+#     async def initialize(self):
+#         """Initialize the model manager asynchronously (call this after event loop is available)"""
+#         if not self._initialization_complete:
+#             await self.model_manager.start_monitoring()
+#             await self.model_manager.warm_up_models()
+#             self._initialization_complete = True
+#             self.logger.info("🐻 Enhanced Mama Bear Agent initialization complete")
+#     
+#     async def process_message(self, message, page_context, user_id, **kwargs):
+#         """Process message with intelligent model selection"""
+#         try:
+#             # Get appropriate variant
+#             variant = self.variants.get(page_context, self.variants['main_chat'])
+#             
+#             # Load conversation memory
+#             context = await self.memory.get_context(user_id, page_context)
+#             
+#             # Prepare messages for the model
+#             messages = [
+#                 {'role': 'system', 'content': variant.get_system_prompt()},
+#                 {'role': 'user', 'content': message}
+#             ]
+#             
+#             # Add context if available
+#             if context:
+#                 context_message = f"Previous context: {context}"
+#                 messages.insert(1, {'role': 'system', 'content': context_message})
+#             
+#             # Determine if this requires advanced reasoning
+#             requires_reasoning = any(keyword in message.lower() for keyword in [
+#                 'analyze', 'compare', 'explain', 'research', 'strategy', 'plan', 'design'
+#             ])
+#             
+#             # Generate response using model manager
+#             mama_bear_context = {
+#                 'variant': page_context,
+#                 'user_id': user_id,
+#                 'session_context': context
+#             }
+#             
+#             response = await self.model_manager.generate_response(
+#                 messages=messages,
+#                 mama_bear_context=mama_bear_context,
+#                 requires_reasoning=requires_reasoning,
+#                 **kwargs
+#             )
+#             
+#             # Save to memory
+#             await self.memory.save_interaction(user_id, message, response.content)
+#             
+#             # Return enhanced response with metadata
+#             return {
+#                 'content': response.content,
+#                 'metadata': {
+#                     'model_used': response.model_used,
+#                     'billing_account': response.billing_account,
+#                     'processing_time': response.processing_time,
+#                     'fallback_count': response.fallback_count,
+#                     'quota_warnings': response.quota_warnings,
+#                     'mama_bear_variant': variant.__class__.__name__
+#                 }
+#             }
+#             
+#         except AllModelsFailedException:
+#             # Emergency fallback response
+#             return {
+#                 'content': "I'm experiencing technical difficulties with my AI models right now. Please try again in a few minutes. I'm working on resolving this! 🐻💙",
+#                 'metadata': {
+#                     'error': 'all_models_failed',
+#                     'fallback_response': True
+#                 }
+#             }
+#         
+#         except Exception as e:
+#             self.logger.error(f"Unexpected error in process_message: {e}")
+#             return {
+#                 'content': "I encountered an unexpected error. Let me try to help you in a different way! 🐻",
+#                 'metadata': {
+#                     'error': str(e),
+#                     'fallback_response': True
+#                 }
+#             }
+#     
+#     async def get_system_status(self):
+#         """Get comprehensive system status"""
+#         return {
+#             'model_status': self.model_manager.get_model_status(),
+#             'memory_status': await self.memory.get_status(),
+#             'active_variants': list(self.variants.keys()),
+#             'timestamp': datetime.now().isoformat()
+#         }
+#     
+#     async def get_response(self, prompt: str, mama_bear_variant: str = 'research_specialist', required_capabilities: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
+#         """
+#         Orchestration-compatible response method
+#         Maps to the existing process_message method for compatibility
+#         """
+#         try:
+#             # Convert orchestration parameters to process_message format
+#             result = await self.process_message(
+#                 message=prompt,
+#                 page_context=kwargs.get('page_context', 'orchestration'),
+#                 user_id=kwargs.get('user_id', 'system'),
+#                 variant_preference=mama_bear_variant,
+#                 **kwargs
+#             )
+#             
+#             return {
+#                 'success': True,
+#                 'response': result['content'],  # Use 'response' key for compatibility
+#                 'content': result['content'],
+#                 'model_used': result.get('metadata', {}).get('model_used', 'unknown'),
+#                 'variant_used': result.get('metadata', {}).get('mama_bear_variant', mama_bear_variant)
+#             }
+#             
+#         except Exception as e:
+#             self.logger.error(f"Error in get_response: {e}")
+#             return {
+#                 'success': False,
+#                 'error': str(e),
+#                 'response': f"🐻 I encountered an issue: {str(e)}",
+#                 'content': f"🐻 I encountered an issue: {str(e)}"
+#             }

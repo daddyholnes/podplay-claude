@@ -11,6 +11,8 @@ from datetime import datetime
 import os
 from typing import Dict, Any, Optional
 import json
+from flask import request # Import flask.request
+from .enhanced_session_manager import SessionType # Import SessionType
 
 from .enhanced_memory_system import EnhancedMemoryManager
 from .enhanced_orchestration_system import EnhancedAgentOrchestrator
@@ -119,8 +121,6 @@ class CompleteEnhancedIntegration:
     async def _initialize_enhanced_session_manager(self):
         """Initialize the enhanced session manager"""
         
-    async def _initialize_enhanced_session_manager(self):
-        """Initialize the enhanced session manager with Mem0 integration"""
         
         logger.info("🔄 Initializing Enhanced Session Manager...")
         
@@ -164,16 +164,20 @@ class CompleteEnhancedIntegration:
         logger.info("🤖 Enabling Autonomous Features...")
         
         # Enable proactive agent behaviors
-        await self.orchestrator.enable_proactive_behaviors()
+        if self.orchestrator:
+            await self.orchestrator.enable_proactive_behaviors()
         
         # Setup intelligent checkpointing
-        await self.session_manager.enable_intelligent_checkpointing()
+        if self.session_manager:
+            await self.session_manager.enable_intelligent_checkpointing()
         
-        # Enable adaptive learning
-        await self.memory_manager.enable_adaptive_learning()
+        # Enable adaptive learning (assuming it's a method on memory_manager)
+        if self.memory_manager:
+            await self.memory_manager.enable_adaptive_learning()
         
         # Setup multi-agent collaboration
-        await self.orchestrator.enable_advanced_collaboration()
+        if self.orchestrator:
+            await self.orchestrator.enable_advanced_collaboration()
         
         self.autonomous_features_enabled = True
         self.system_health['autonomous_capabilities'] = True
@@ -197,16 +201,22 @@ class CompleteEnhancedIntegration:
         
         logger.info("⚙️ Starting Background Processes...")
         
-        # Memory system background tasks (using actual method names)
-        asyncio.create_task(self.memory_manager._pattern_analysis_loop())
-        asyncio.create_task(self.memory_manager._memory_consolidation_loop())
+        # Memory system background tasks (using actual method names that exist)
+        if self.memory_manager:
+            if hasattr(self.memory_manager, '_pattern_analysis_loop'):
+                asyncio.create_task(self.memory_manager._pattern_analysis_loop())
+            if hasattr(self.memory_manager, '_memory_consolidation_loop'):
+                asyncio.create_task(self.memory_manager._memory_consolidation_loop())
         
         # Orchestration background tasks
-        asyncio.create_task(self.orchestrator._monitor_system_health())
+        if self.orchestrator:
+            if hasattr(self.orchestrator, '_monitor_system_health'):
+                asyncio.create_task(self.orchestrator._monitor_system_health())
         
-        # Session management background tasks  
-        if hasattr(self.session_manager, '_cleanup_expired_sessions'):
-            asyncio.create_task(self.session_manager._cleanup_expired_sessions())
+        # Session management background tasks
+        if self.session_manager:
+            if hasattr(self.session_manager, 'cleanup_expired_sessions'): # Corrected to public method
+                asyncio.create_task(self.session_manager.cleanup_expired_sessions())
         
         logger.info("✅ Background processes started for autonomous operation")
     
@@ -221,51 +231,59 @@ class CompleteEnhancedIntegration:
         try:
             # Create or get session
             if not session_id:
-                session = await self.session_manager.create_autonomous_session(
-                    user_id=user_id,
-                    session_type='autonomous_chat',
-                    initial_context={'page_context': page_context}
-                )
-                session_id = session['session_id']
-            
+                if self.session_manager: # Add null check for session_manager
+                    session = await self.session_manager.create_session( # Corrected method name
+                        user_id=user_id,
+                        session_type=SessionType.CHAT, # Use the Enum member
+                        metadata={'page_context': page_context} # Use metadata instead of initial_context
+                    )
+                    session_id = session.session_id # Access session_id from object
+                else:
+                    raise RuntimeError("Session manager not initialized for autonomous session creation.")
+
             # Get enhanced context from memory system
-            context = await self.memory_manager.get_enhanced_context(
-                user_id=user_id,
-                session_id=session_id,
-                include_patterns=True,
-                include_learning_insights=True
-            )
+            context = {}
+            if self.memory_manager: # Add null check for memory_manager
+                context = await self.memory_manager.get_enhanced_context(
+                    user_id=user_id,
+                    session_id=session_id,
+                    include_patterns=True,
+                    include_learning_insights=True
+                )
             
             # Process with enhanced orchestration
-            result = await self.orchestrator.process_autonomous_request(
-                message=message,
-                user_id=user_id,
-                session_id=session_id,
-                context=context,
-                page_context=page_context
-            )
+            result = {}
+            if self.orchestrator: # Add null check for orchestrator
+                result = await self.orchestrator.process_autonomous_request(
+                    message=message,
+                    user_id=user_id,
+                    session_id=session_id,
+                    context=context,
+                    page_context=page_context
+                )
             
             # Save interaction with enhanced metadata
-            await self.memory_manager.save_enhanced_interaction(
-                user_id=user_id,
-                session_id=session_id,
-                message=message,
-                response=result,
-                metadata={
-                    'autonomous_processing': True,
-                    'decision_analysis': result.get('decision_analysis'),
-                    'agents_involved': result.get('agents_involved', []),
-                    'learning_opportunity': result.get('learning_opportunity'),
-                    'page_context': page_context
-                }
-            )
+            if self.memory_manager: # Add null check for memory_manager
+                await self.memory_manager.save_enhanced_interaction(
+                    user_id=user_id,
+                    session_id=session_id,
+                    message=message,
+                    response=result,
+                    metadata={
+                        'autonomous_processing': True,
+                        'decision_analysis': result.get('decision_analysis'),
+                        'agents_involved': result.get('agents_involved', []),
+                        'learning_opportunity': result.get('learning_opportunity'),
+                        'page_context': page_context
+                    }
+                )
             
             # Create checkpoint if significant interaction
-            if result.get('create_checkpoint', False):
+            if self.session_manager and result.get('create_checkpoint', False): # Add null check for session_manager
                 await self.session_manager.create_intelligent_checkpoint(
                     session_id=session_id,
-                    checkpoint_name=f"autonomous_interaction_{datetime.now().timestamp()}",
-                    metadata={
+                    description=f"autonomous_interaction_{datetime.now().timestamp()}", # Corrected argument name
+                    state_data={ # Pass metadata as state_data if it's a checkpoint state
                         'interaction_significance': result.get('significance_score', 0.5),
                         'user_request': message[:100],
                         'agents_involved': result.get('agents_involved', [])
@@ -302,17 +320,26 @@ class CompleteEnhancedIntegration:
         
         try:
             # Basic response using model manager
-            result = await self.model_manager.get_response(
-                prompt=f"User request: {message}\n\nPlease provide a helpful response as Mama Bear.",
-                mama_bear_variant='main_chat',
-                required_capabilities=['chat']
-            )
+            result = {}
+            if self.model_manager: # Add null check for model_manager
+                result = await self.model_manager.get_response(
+                    prompt=f"User request: {message}\n\nPlease provide a helpful response as Mama Bear.",
+                    mama_bear_variant='main_chat',
+                    required_capabilities=['chat']
+                )
             
-            return {
-                'content': result.get('response', "🐻 I'm having some technical difficulties, but I'm here to help!"),
-                'fallback_mode': True,
-                'model_used': result.get('model_used')
-            }
+                return {
+                    'content': result.get('response', "🐻 I'm having some technical difficulties, but I'm here to help!"),
+                    'fallback_mode': True,
+                    'model_used': result.get('model_used')
+                }
+            else:
+                return {
+                    'content': "🐻 My core model manager is not available. Please check the backend setup.",
+                    'fallback_mode': True,
+                    'error': "Model manager not initialized"
+                }
+
             
         except Exception as e:
             logger.error(f"Fallback processing also failed: {e}")
@@ -334,14 +361,20 @@ class CompleteEnhancedIntegration:
         
         if self.is_initialized:
             # Get detailed component statuses
-            if self.memory_manager:
+            if self.memory_manager and hasattr(self.memory_manager, 'get_system_health'): # Add hasattr check
                 status['memory_system'] = await self.memory_manager.get_system_health()
+            else:
+                status['memory_system'] = {'status': 'unavailable', 'message': 'Memory manager not initialized or missing get_system_health'}
             
-            if self.orchestrator:
+            if self.orchestrator and hasattr(self.orchestrator, 'get_system_health'): # Add hasattr check
                 status['orchestration_system'] = await self.orchestrator.get_system_health()
+            else:
+                status['orchestration_system'] = {'status': 'unavailable', 'message': 'Orchestration manager not initialized or missing get_system_health'}
             
-            if self.session_manager:
+            if self.session_manager and hasattr(self.session_manager, 'get_system_health'): # Add hasattr check
                 status['session_management'] = await self.session_manager.get_system_health()
+            else:
+                status['session_management'] = {'status': 'unavailable', 'message': 'Session manager not initialized or missing get_system_health'}
         
         return status
     

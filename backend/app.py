@@ -55,6 +55,19 @@ except ImportError as e:
     integrate_complete_enhanced_system_with_app = None
     enhanced_integration = None
 
+# Import collaborative workspace system
+try:
+    from api.collaborative_workspace_api import collaborative_bp, initialize_collaborative_api
+    from services.enhanced_collaborative_integration import EnhancedCollaborativeIntegration
+    COLLABORATIVE_WORKSPACE_AVAILABLE = True
+    logger.info("✅ Collaborative Workspace System available")
+except ImportError as e:
+    logger.warning(f"Collaborative Workspace System not available: {e}")
+    COLLABORATIVE_WORKSPACE_AVAILABLE = False
+    collaborative_bp = None
+    initialize_collaborative_api = None
+    EnhancedCollaborativeIntegration = None
+
 # Import API integration
 try:
     from api.mama_bear_orchestration_api import integrate_orchestration_with_app
@@ -389,10 +402,16 @@ async def create_vm_instance():
         project_config = data.get('config', {})
         instance_type = data.get('type', 'ubuntu')
         
-        instance = await scrapybara.create_instance(
-            instance_type=instance_type,
-            config=project_config
-        )
+        if scrapybara: # Add null check
+            instance = await scrapybara.create_instance(
+                instance_type=instance_type,
+                config=project_config
+            )
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Scrapybara service not available'
+            }), 503
         
         return jsonify({
             'success': True,
@@ -416,7 +435,13 @@ async def vm_action(instance_id):
         data = request.json or {}
         action = data.get('action')
         
-        result = await scrapybara.instance_action(instance_id, action)
+        if scrapybara: # Add null check
+            result = await scrapybara.instance_action(instance_id, action)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Scrapybara service not available'
+            }), 503
         
         return jsonify({
             'success': True,
@@ -447,11 +472,17 @@ async def execute_scout_task():
         user_id = data.get('user_id', 'nathan_sanctuary')
         
         # Start Scout task execution
-        task_id = await scrapybara.execute_scout_task(
-            task_description=task_description,
-            files=files,
-            user_id=user_id
-        )
+        if scrapybara: # Add null check
+            task_id = await scrapybara.execute_scout_task(
+                task_description=task_description,
+                files=files,
+                user_id=user_id
+            )
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Scrapybara service not available'
+            }), 503
         
         return jsonify({
             'success': True,
@@ -473,7 +504,13 @@ def get_scout_task_status(task_id):
         services = get_service_instances()
         scrapybara = services['scrapybara']
         
-        status = scrapybara.get_task_status(task_id)
+        if scrapybara: # Add null check
+            status = scrapybara.get_task_status(task_id)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Scrapybara service not available'
+            }), 503
         return jsonify({
             'success': True,
             'status': status
@@ -526,7 +563,13 @@ def set_user_theme(theme_name):
         data = request.json or {}
         user_id = data.get('user_id', 'nathan_sanctuary')
         
-        theme_mgr.set_user_theme(user_id, theme_name)
+        if theme_mgr: # Add null check
+            theme_mgr.set_user_theme(user_id, theme_name)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Theme manager not available'
+            }), 503
         
         return jsonify({
             'success': True,
@@ -554,7 +597,13 @@ def get_user_conversations():
         user_id = request.args.get('user_id', 'nathan_sanctuary')
         limit = int(request.args.get('limit', 50))
         
-        conversations = memory.get_conversation_history(user_id, limit)
+        if memory: # Add null check
+            conversations = memory.get_conversation_history(user_id, limit)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Memory manager not available'
+            }), 503
         
         return jsonify({
             'success': True,
@@ -576,7 +625,13 @@ def get_user_preferences():
         memory = services['memory']
         
         user_id = request.args.get('user_id', 'nathan_sanctuary')
-        preferences = memory.get_user_preferences(user_id)
+        if memory: # Add null check
+            preferences = memory.get_user_preferences(user_id)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Memory manager not available'
+            }), 503
         
         return jsonify({
             'success': True,
@@ -601,7 +656,13 @@ def update_user_preferences():
         user_id = data.get('user_id', 'nathan_sanctuary')
         preferences = data.get('preferences', {})
         
-        memory.update_user_preferences(user_id, preferences)
+        if memory: # Add null check
+            memory.update_user_preferences(user_id, preferences)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Memory manager not available'
+            }), 503
         
         return jsonify({
             'success': True,
@@ -737,11 +798,15 @@ async def handle_mama_bear_message(data):
         user_id = data.get('user_id', 'nathan_sanctuary')
         
         # Process message with Mama Bear
-        response = await mama_bear.process_message(
-            message=message,
-            page_context=page_context,
-            user_id=user_id
-        )
+        if mama_bear: # Add null check
+            response = await mama_bear.process_message(
+                message=message,
+                page_context=page_context,
+                user_id=user_id
+            )
+        else:
+            emit('error', {'message': 'Mama Bear agent not available'})
+            return
         
         # Emit response back to client
         emit('mama_bear_response', {

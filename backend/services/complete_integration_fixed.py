@@ -188,16 +188,15 @@ class CompleteMamaBearSystem:
         
         if initialize_orchestration and self.app and self.memory_manager and self.model_manager:
             try:
-                # Initialize orchestrator
+                # Initialize orchestrator with proper error handling
                 self.orchestrator = await initialize_orchestration(
-                    self.app,
                     self.memory_manager,
-                    self.model_manager,
-                    self.scrapybara_client
+                    self.model_manager
                 )
                 
                 # Update app config
-                self.app.config['mama_bear_orchestrator'] = self.orchestrator
+                if self.app:
+                    self.app.config['mama_bear_orchestrator'] = self.orchestrator
                 
                 # Integrate API endpoints
                 if integrate_orchestration_with_app:
@@ -224,7 +223,8 @@ class CompleteMamaBearSystem:
         if MamaBearMonitoring:
             try:
                 self.monitoring = MamaBearMonitoring()
-                self.app.config['mama_bear_monitoring'] = self.monitoring
+                if self.app:
+                    self.app.config['mama_bear_monitoring'] = self.monitoring
                 logger.info("✅ Monitoring initialized")
             except Exception as e:
                 logger.warning(f"⚠️ Monitoring initialization failed: {e}")
@@ -286,8 +286,10 @@ class CompleteMamaBearSystem:
                 debug=debug,
                 allow_unsafe_werkzeug=True
             )
-        else:
+        elif self.app:
             self.app.run(host=host, port=port, debug=debug)
+        else:
+            raise RuntimeError("No Flask app available to run")
 
 # Convenience function for easy setup
 async def create_mama_bear_app(config=None):
@@ -299,7 +301,8 @@ async def create_mama_bear_app(config=None):
     app = await system.initialize()
     
     # Store system reference in app config
-    app.config['mama_bear_system'] = system
+    if app:
+        app.config['mama_bear_system'] = system
     
     return app
 

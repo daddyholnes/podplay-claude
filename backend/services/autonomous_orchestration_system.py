@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from enum import Enum
 import uuid
 
@@ -22,7 +22,7 @@ from .enhanced_session_manager import (
 )
 
 # Import workflow intelligence (assuming it's moved to services)
-from .workflow_logic import (
+from .mama_bear_workflow_logic import (
     WorkflowIntelligence,
     CollaborationOrchestrator,
     WorkflowDecision,
@@ -63,13 +63,13 @@ class AutonomousTask:
     # Progress tracking
     progress_percentage: float = 0.0
     current_phase: str = "initialization"
-    steps_completed: List[str] = None
-    steps_remaining: List[str] = None
+    steps_completed: List[str] = field(default_factory=list)
+    steps_remaining: List[str] = field(default_factory=list)
     
     # Agent collaboration
-    active_agents: List[str] = None
-    agent_results: Dict[str, Any] = None
-    collaboration_history: List[Dict[str, Any]] = None
+    active_agents: List[str] = field(default_factory=list)
+    agent_results: Dict[str, Any] = field(default_factory=dict)
+    collaboration_history: List[Dict[str, Any]] = field(default_factory=list)
     
     # Autonomous features
     auto_recovery_attempts: int = 0
@@ -78,9 +78,9 @@ class AutonomousTask:
     requires_human_approval: bool = False
     
     # Scout.new style context
-    context_memory: Dict[str, Any] = None
-    learned_patterns: List[str] = None
-    adaptation_history: List[Dict[str, Any]] = None
+    context_memory: Dict[str, Any] = field(default_factory=dict)
+    learned_patterns: List[str] = field(default_factory=list)
+    adaptation_history: List[Dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self):
         if self.steps_completed is None:
@@ -114,16 +114,29 @@ class AutonomousOrchestrationSystem:
         # Initialize enhanced session manager
         self.session_manager = EnhancedSessionManager(config)
         
-        # Initialize workflow intelligence
-        self.workflow_intelligence, self.collaboration_orchestrator = initialize_workflow_intelligence(
-            model_manager, memory_manager
-        )
+        # Initialize workflow intelligence (will be set by initialize method)
+        self.workflow_intelligence = None
+        self.collaboration_orchestrator = None
         
         # Active autonomous tasks
         self.active_autonomous_tasks: Dict[str, AutonomousTask] = {}
         
         # Background monitoring
         self._monitoring_tasks = set()
+        
+    async def initialize(self):
+        """Initialize async components"""
+        # Initialize workflow intelligence
+        try:
+            workflow_result = await initialize_workflow_intelligence(
+                self.model_manager, self.memory_manager
+            )
+            self.workflow_intelligence, self.collaboration_orchestrator = workflow_result
+        except Exception as e:
+            logger.warning(f"Failed to initialize workflow intelligence: {e}")
+            # Set fallbacks
+            self.workflow_intelligence = None
+            self.collaboration_orchestrator = None
         self._shutdown_event = asyncio.Event()
         
         logger.info("🚀 Autonomous Orchestration System initialized")
@@ -243,7 +256,7 @@ class AutonomousOrchestrationSystem:
                     {
                         "final_result": result,
                         "completion_time": datetime.now().isoformat(),
-                        "total_duration": (datetime.now() - task.started_at).total_seconds()
+                        "total_duration": (datetime.now() - task.started_at).total_seconds() if task.started_at else 0
                     }
                 )
             
@@ -623,13 +636,14 @@ class AutonomousOrchestrationSystem:
             # Extend by 50% of original estimate
             original_duration = task.workflow_decision.estimated_duration
             extension = timedelta(minutes=original_duration * 0.5)
-            task.estimated_completion += extension
+            if task.estimated_completion:
+                task.estimated_completion += extension
             
             task.adaptation_history.append({
                 "timestamp": datetime.now().isoformat(),
                 "adaptation_type": "deadline_extension",
                 "reason": "making_good_progress",
-                "new_deadline": task.estimated_completion.isoformat()
+                "new_deadline": task.estimated_completion.isoformat() if task.estimated_completion else None
             })
             
             logger.info(f"⏱️ Extended deadline for task {task.task_id} due to good progress")
@@ -653,7 +667,7 @@ class AutonomousOrchestrationSystem:
             "Task suspended - appears stuck, requires human review",
             {
                 "stuck_diagnosis": {
-                    "running_time_hours": (datetime.now() - task.started_at).total_seconds() / 3600,
+                    "running_time_hours": ((datetime.now() - task.started_at).total_seconds() / 3600) if task.started_at else 0,
                     "progress_made": task.progress_percentage,
                     "last_activity": task.current_phase,
                     "recovery_attempts": task.auto_recovery_attempts

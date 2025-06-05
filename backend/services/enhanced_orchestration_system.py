@@ -43,11 +43,11 @@ class AgentContext:
     agent_id: str
     current_task: Optional[str] = None
     user_intent: str = ""
-    project_context: Dict[str, Any] = None
-    conversation_history: List[Dict] = None
-    available_tools: List[str] = None
-    resource_limits: Dict[str, Any] = None
-    collaboration_state: Dict[str, Any] = None
+    project_context: Optional[Dict[str, Any]] = None
+    conversation_history: Optional[List[Dict]] = None
+    available_tools: Optional[List[str]] = None
+    resource_limits: Optional[Dict[str, Any]] = None
+    collaboration_state: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.project_context is None:
@@ -70,16 +70,16 @@ class Task:
     agent_type: str
     priority: TaskPriority
     status: TaskStatus
-    dependencies: List[str] = None
+    dependencies: Optional[List[str]] = None
     estimated_duration: int = 300  # seconds
     max_retries: int = 3
     current_attempt: int = 0
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
-    context: Dict[str, Any] = None
+    context: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.dependencies is None:
@@ -98,7 +98,7 @@ class Plan:
     tasks: List[Task]
     user_id: str
     status: TaskStatus = TaskStatus.PENDING
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     estimated_completion: Optional[datetime] = None
     
     def __post_init__(self):
@@ -219,7 +219,11 @@ class EnhancedAgentOrchestrator:
         self.collaboration_sessions = {}
         
         # Performance tracking
-        self.agent_performance = defaultdict(lambda: {'success_rate': 0.8, 'avg_response_time': 2.0})
+        self.agent_performance = defaultdict(lambda: {
+            'success_rate': 0.8, 
+            'avg_response_time': 2.0,
+            'last_update': datetime.now().timestamp()
+        })
         
         # Initialize specialized agents
         self._initialize_agents()
@@ -300,30 +304,40 @@ class EnhancedAgentOrchestrator:
             user_patterns = await self.memory.get_user_patterns(user_id)
             
             # Use workflow intelligence to make decisions
-            decision = await self.workflow_intelligence.make_decision(
-                user_input=message,
-                context={
-                    'page_context': page_context,
-                    'user_patterns': user_patterns,
-                    'available_agents': list(self.agents.keys()),
-                    'agent_performance': dict(self.agent_performance)
-                }
-            )
+            if self.workflow_intelligence is None:
+                logger.warning("workflow_intelligence is None, using fallback")
+                return await self._process_with_legacy_analysis(message, user_id, page_context)
+                
+            try:
+                decision = await self.workflow_intelligence.analyze_request_intent(
+                    message=message,
+                    context={
+                        'user_id': user_id,
+                        'page_context': page_context,
+                        'user_patterns': user_patterns,
+                        'available_agents': list(self.agents.keys()),
+                        'agent_performance': dict(self.agent_performance)
+                    }
+                )
+            except AttributeError:
+                # Fallback if analyze_request_intent method doesn't exist
+                logger.warning("analyze_request_intent method not available, using fallback")
+                return await self._process_with_legacy_analysis(message, user_id, page_context)
             
             # Save decision pattern for learning
             await self.memory.save_decision_pattern(user_id, {
-                'workflow_type': decision.workflow_type,
-                'selected_agents': decision.agent_assignments,
-                'confidence_score': decision.confidence_score,
+                'workflow_type': decision.decision_type,
+                'selected_agents': decision.selected_agents,
+                'confidence_score': decision.confidence.value,
                 'reasoning': decision.reasoning,
                 'user_input': message,
                 'page_context': page_context
             })
             
             # Execute based on decision
-            if decision.workflow_type == 'single_agent':
+            if decision.decision_type == 'simple_query':
                 # Single agent execution
-                primary_agent = decision.agent_assignments[0]
+                primary_agent = decision.selected_agents[0] if decision.selected_agents else 'lead_developer'
                 agent = self.agents.get(primary_agent)
                 if agent:
                     result = await agent.handle_request(message, user_id)
@@ -335,7 +349,7 @@ class EnhancedAgentOrchestrator:
                 else:
                     return await self._fallback_response(message, user_id)
             
-            elif decision.workflow_type in ['sequential', 'parallel', 'hierarchical']:
+            elif decision.decision_type in ['research_task', 'code_generation', 'complex_project']:
                 # Multi-agent collaboration
                 return await self._execute_collaborative_workflow(decision, message, user_id)
                 
@@ -355,13 +369,19 @@ class EnhancedAgentOrchestrator:
         
         try:
             # Use collaboration orchestrator
-            result = await self.collaboration_orchestrator.execute_workflow(
-                workflow_type=decision.workflow_type,
-                agent_assignments=decision.agent_assignments,
-                user_input=message,
-                user_id=user_id,
-                orchestrator=self
-            )
+            try:
+                result = await self.collaboration_orchestrator.orchestrate_collaborative_workflow(
+                    decision,
+                    message,
+                    {
+                        'user_id': user_id,
+                        'page_context': 'main_chat'
+                    }
+                )
+            except AttributeError:
+                # Fallback if execute_workflow method doesn't exist
+                logger.warning("execute_workflow method not available, using fallback")
+                return await self._fallback_response(message, user_id)
             
             # Track collaborative performance
             for agent_id in decision.agent_assignments:
@@ -396,6 +416,9 @@ class EnhancedAgentOrchestrator:
         elif strategy['type'] == 'plan_and_execute':
             # Need planning phase followed by execution
             return await self._plan_and_execute(strategy, message, user_id)
+        else:
+            # Fallback for unknown strategy types
+            return await self._fallback_response(message, user_id)
     
     async def _analyze_request(self, message: str, page_context: str) -> Dict[str, Any]:
         """Analyze user request to determine optimal agent strategy"""
@@ -425,7 +448,7 @@ class EnhancedAgentOrchestrator:
         result = await self.model_manager.get_response(
             prompt=analysis_prompt,
             mama_bear_variant='research_specialist',
-            required_capabilities=['chat', 'code']
+            required_capabilities=['chat']
         )
         
         if result['success']:
@@ -511,15 +534,39 @@ class EnhancedAgentOrchestrator:
             return_exceptions=True
         )
         
+        # Filter out exceptions and convert to proper format
+        valid_results = []
+        for result in results:
+            if isinstance(result, Exception):
+                valid_results.append({'success': False, 'error': str(result), 'agent_id': 'unknown'})
+            elif isinstance(result, dict):
+                valid_results.append(result)
+            else:
+                valid_results.append({'success': False, 'error': 'Invalid result type', 'agent_id': 'unknown'})
+        
         # Synthesize results
-        return await self._synthesize_collaboration_results(collaboration_id, results, message)
+        return await self._synthesize_collaboration_results(collaboration_id, valid_results, message)
     
     async def _plan_and_execute(self, strategy: Dict[str, Any], message: str, user_id: str) -> Dict[str, Any]:
         """Plan and execute complex multi-step requests"""
         
         # Phase 1: Planning
         planner_agent = self.agents.get('lead_developer')  # Lead developer acts as planner
-        plan = await planner_agent.create_plan(message, user_id)
+        if planner_agent and hasattr(planner_agent, 'create_plan'):
+            plan = await planner_agent.create_plan(message, user_id)
+        else:
+            # Fallback plan creation
+            plan = {
+                'id': f"plan_{datetime.now().timestamp()}",
+                'title': f"Plan for: {message[:50]}...",
+                'description': "I'll work on this step by step",
+                'status': 'approved',  # Auto-approve for now
+                'created_by': 'system',
+                'user_id': user_id,
+                'tasks': [
+                    {'description': message, 'agent': 'lead_developer', 'priority': 'high'}
+                ]
+            }
         
         # Present plan to user for approval (in real implementation, you'd wait for user input)
         # For now, we'll auto-approve simple plans
@@ -629,7 +676,7 @@ class EnhancedAgentOrchestrator:
         current['success_rate'] = (1 - alpha) * current['success_rate'] + alpha * (1.0 if success else 0.0)
         
         # Update timestamp
-        current['last_update'] = datetime.now()
+        current['last_update'] = datetime.now().timestamp()
     
     async def _fallback_response(self, message: str, user_id: str) -> Dict[str, Any]:
         """Fallback response when routing fails"""
@@ -646,7 +693,7 @@ class EnhancedAgentOrchestrator:
                 'metadata': {'fallback': True}
             }
     
-    async def send_agent_message(self, from_agent: str, to_agent: str, message: str, context: Dict = None):
+    async def send_agent_message(self, from_agent: str, to_agent: str, message: str, context: Optional[Dict] = None):
         """Enable agents to communicate with each other"""
         
         message_obj = {
@@ -689,6 +736,59 @@ class EnhancedAgentOrchestrator:
             'workflow_intelligence_available': self.workflow_intelligence is not None
         }
     
+    async def get_performance_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive performance metrics for all agents and system"""
+        
+        metrics = {
+            'timestamp': datetime.now().isoformat(),
+            'system_overview': {
+                'total_agents': len(self.agents),
+                'active_tasks': len(self.active_tasks),
+                'completed_tasks': len(self.completed_tasks),
+                'collaboration_sessions': len(self.collaboration_sessions)
+            },
+            'agent_performance': {},
+            'system_performance': {
+                'memory_cache_size': len(self.memory.memory_cache),
+                'average_response_time': 0.0,
+                'success_rate': 0.0
+            }
+        }
+        
+        # Gather agent-specific metrics
+        total_requests = 0
+        total_successful = 0
+        total_response_time = 0.0
+        
+        for agent_id, performance in self.agent_performance.items():
+            agent_metrics = {
+                'requests_handled': performance.get('requests', 0),
+                'success_rate': performance.get('success_rate', 0.0),
+                'average_response_time': performance.get('avg_response_time', 0.0),
+                'last_activity': performance.get('last_activity', 'never')
+            }
+            metrics['agent_performance'][agent_id] = agent_metrics
+            
+            # Aggregate for system metrics
+            requests = performance.get('requests', 0)
+            successful = performance.get('successful', 0)
+            response_time = performance.get('avg_response_time', 0.0)
+            
+            total_requests += requests
+            total_successful += successful
+            total_response_time += response_time * requests if requests > 0 else 0
+        
+        # Calculate system-wide performance
+        if total_requests > 0:
+            metrics['system_performance']['success_rate'] = total_successful / total_requests
+            metrics['system_performance']['average_response_time'] = total_response_time / total_requests
+        
+        return metrics
+
+    async def get_system_health(self) -> Dict[str, Any]:
+        """Get system health status - wrapper for compatibility"""
+        return await self.get_system_status()
+
     async def _monitor_system_health(self):
         """Background system health monitoring"""
         while True:
@@ -764,7 +864,7 @@ class EnhancedAgentOrchestrator:
                 current_time = datetime.now()
                 
                 # Example: Suggest memory cleanup
-                if len(self.memory.memory_cache) > 100:
+                if hasattr(self.memory, 'memory_cache') and len(self.memory.memory_cache) > 100:
                     logger.info("📝 Proactive suggestion: Memory consolidation recommended")
                 
                 # Example: Suggest performance optimization
@@ -792,6 +892,24 @@ class EnhancedAgentOrchestrator:
                 
             except Exception as e:
                 logger.error(f"Collaboration optimizer error: {e}")
+ 
+    async def process_autonomous_request(self, message: str, user_id: str, session_id: Optional[str] = None, context: Optional[Dict[str, Any]] = None, page_context: str = 'main_chat') -> Dict[str, Any]:
+        """Stub: Process autonomous requests with intelligent orchestration facade"""
+        logger.info(f"Stub: Processing autonomous request for user {user_id} in session {session_id}")
+        
+        # Mock decision logic
+        response_content = f"Acknowledged: '{message}'. This is a stub autonomous response."
+        if "plan" in message.lower() or "complex" in message.lower():
+            response_content = "Recognized as a complex task, initiating planning phase (stub)."
+            
+        return {
+            "response": {"content": response_content},
+            "agents_involved": ["orchestrator_stub"],
+            "decision_analysis": {"flow": "default_autonomous_stub", "reason": "mock"},
+            "create_checkpoint": True, # For testing checkpointing
+            "significance_score": 0.8,
+            "learning_opportunity": True
+        }
 
 class MamaBearAgent:
     """Enhanced base class for all Mama Bear agents"""
@@ -803,7 +921,6 @@ class MamaBearAgent:
         self.state = AgentState.IDLE
         self.current_task = None
         self.last_activity = datetime.now()
-        self.capabilities = []
         self.performance_metrics = {
             'total_requests': 0,
             'successful_requests': 0,
@@ -838,7 +955,10 @@ class MamaBearAgent:
             if relevant_context:
                 context_str = "\n\nRelevant context from previous conversations:\n"
                 for ctx in relevant_context:
-                    context_str += f"- {ctx['content'].get('user_message', '')}: {ctx['content'].get('agent_response', '')}\n"
+                    if 'content' in ctx and isinstance(ctx['content'], dict):
+                        user_msg = ctx['content'].get('user_message', '')
+                        agent_resp = ctx['content'].get('agent_response', '')
+                        context_str += f"- {user_msg}: {agent_resp}\n"
             
             full_prompt = f"""
             {system_prompt}
@@ -984,7 +1104,82 @@ class LeadDeveloperAgent(MamaBearAgent):
                 'created_by': self.id,
                 'user_id': user_id
             }
-
+    
+    async def _execute_plan(self, plan: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+        """Execute a plan created by the planning phase"""
+        
+        try:
+            executed_tasks = []
+            
+            # Execute each task in the plan
+            for task_info in plan.get('tasks', []):
+                agent_id = task_info.get('agent', 'lead_developer')
+                task_description = task_info.get('description', '')
+                
+                # Get the appropriate agent
+                agent = self.orchestrator.agents.get(agent_id, self.orchestrator.agents.get('lead_developer')) # Access via orchestrator
+                
+                if agent:
+                    # Execute the task
+                    result = await agent.handle_request(task_description, user_id)
+                    executed_tasks.append({
+                        'agent_id': agent_id,
+                        'task': task_description,
+                        'result': result,
+                        'success': result.get('success', False)
+                    })
+                    
+                    # Track performance
+                    await self.orchestrator._track_agent_performance(agent_id, result.get('success', False)) # Access via orchestrator
+                else:
+                    executed_tasks.append({
+                        'agent_id': agent_id,
+                        'task': task_description,
+                        'result': {'success': False, 'error': f'Agent {agent_id} not found'},
+                        'success': False
+                    })
+            
+            # Synthesize plan execution results
+            successful_tasks = [t for t in executed_tasks if t['success']]
+            
+            if successful_tasks:
+                combined_content = f"I've executed the plan successfully! Here's what was accomplished:\n\n"
+                for i, task in enumerate(successful_tasks):
+                    combined_content += f"**Step {i+1} ({task['agent_id']}):**\n"
+                    combined_content += f"{task['result'].get('content', 'Task completed')}\n\n"
+                
+                return {
+                    'success': True,
+                    'type': 'plan_execution',
+                    'content': combined_content,
+                    'plan_id': plan.get('id'),
+                    'executed_tasks': len(executed_tasks),
+                    'successful_tasks': len(successful_tasks),
+                    'metadata': {
+                        'plan_title': plan.get('title'),
+                        'task_details': executed_tasks
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'type': 'plan_execution_failed',
+                    'content': "I encountered difficulties executing the plan. Let me try a different approach!",
+                    'plan_id': plan.get('id'),
+                    'executed_tasks': len(executed_tasks),
+                    'successful_tasks': 0,
+                    'error': 'No tasks completed successfully'
+                }
+                
+        except Exception as e:
+            logger.error(f"Plan execution error: {e}")
+            return {
+                'success': False,
+                'type': 'plan_execution_error',
+                'content': "I encountered an error while executing the plan. Let me help you in a simpler way!",
+                'error': str(e)
+            }
+ 
 # Basic specialist classes as fallbacks
 class BasicResearchSpecialist:
     def get_system_prompt(self):

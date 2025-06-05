@@ -43,11 +43,11 @@ class MemoryRecord:
     user_id: str
     agent_id: Optional[str] = None
     importance: MemoryImportance = MemoryImportance.MEDIUM
-    tags: List[str] = None
-    created_at: datetime = None
-    accessed_at: datetime = None
+    tags: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
+    accessed_at: Optional[datetime] = None
     access_count: int = 0
-    related_memories: List[str] = None
+    related_memories: Optional[List[str]] = None
     embedding: Optional[List[float]] = None
     
     def __post_init__(self):
@@ -65,13 +65,13 @@ class UserProfile:
     """Comprehensive user profile built from interactions"""
     user_id: str
     expertise_level: str = "intermediate"
-    preferred_agents: List[str] = None
-    communication_style: Dict[str, float] = None
-    project_history: List[Dict] = None
-    success_patterns: Dict[str, float] = None
-    learning_preferences: Dict[str, Any] = None
+    preferred_agents: Optional[List[str]] = None
+    communication_style: Optional[Dict[str, float]] = None
+    project_history: Optional[List[Dict]] = None
+    success_patterns: Optional[Dict[str, float]] = None
+    learning_preferences: Optional[Dict[str, Any]] = None
     context_retention_days: int = 30
-    last_updated: datetime = None
+    last_updated: Optional[datetime] = None
     
     def __post_init__(self):
         if self.preferred_agents is None:
@@ -129,7 +129,7 @@ class EnhancedMemoryManager:
         os.makedirs(f"{self.local_storage_path}/profiles", exist_ok=True)
         os.makedirs(f"{self.local_storage_path}/patterns", exist_ok=True)
     
-    async def save_interaction(self, user_id: str, message: str, response: str, metadata: Dict[str, Any] = None):
+    async def save_interaction(self, user_id: str, message: str, response: str, metadata: Optional[Dict[str, Any]] = None):
         """Save a complete interaction with rich context"""
         
         if metadata is None:
@@ -181,7 +181,7 @@ class EnhancedMemoryManager:
         
         logger.debug(f"Saved interaction memory {memory_id} for user {user_id}")
     
-    async def get_relevant_context(self, user_id: str, query: str, agent_id: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+    async def get_relevant_context(self, user_id: str, query: str, agent_id: Optional[str] = None, limit: int = 5) -> List[Dict[str, Any]]:
         """Get relevant context for a query using semantic similarity and recency"""
         
         # Get query embedding (placeholder - would use actual embedding model)
@@ -247,9 +247,9 @@ class EnhancedMemoryManager:
         
         return {
             'expertise_level': profile.expertise_level,
-            'preferred_agents': profile.preferred_agents,
-            'communication_style': profile.communication_style,
-            'success_patterns': profile.success_patterns,
+            'preferred_agents': profile.preferred_agents or [],
+            'communication_style': profile.communication_style or {},
+            'success_patterns': profile.success_patterns or {},
             'recent_patterns': patterns,
             'common_topics': await self._get_common_topics(user_id),
             'collaboration_preferences': await self._get_collaboration_preferences(user_id),
@@ -288,7 +288,7 @@ class EnhancedMemoryManager:
         
         return patterns
     
-    async def get_recent_conversations(self, user_id: str = None, agent_id: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_recent_conversations(self, user_id: Optional[str] = None, agent_id: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent conversations with optional filtering"""
         
         memories = []
@@ -439,15 +439,17 @@ class EnhancedMemoryManager:
         """Update memory indices for fast retrieval"""
         
         # Tag index
-        for tag in memory.tags:
-            self.memory_index[tag].append(memory.id)
+        if memory.tags:
+            for tag in memory.tags:
+                self.memory_index[tag].append(memory.id)
         
         # User index
         self.user_memory_index[memory.user_id].append(memory.id)
         
         # Temporal index
-        date_key = memory.created_at.strftime("%Y-%m-%d")
-        self.temporal_index[date_key].append(memory.id)
+        if memory.created_at:
+            date_key = memory.created_at.strftime("%Y-%m-%d")
+            self.temporal_index[date_key].append(memory.id)
     
     async def _analyze_sentiment(self, text: str) -> Dict[str, float]:
         """Analyze sentiment of text (placeholder for actual implementation)"""
@@ -586,7 +588,7 @@ class EnhancedMemoryManager:
                 'agent_id': memory_record.agent_id,
                 'importance': memory_record.importance.value,
                 'tags': memory_record.tags,
-                'created_at': memory_record.created_at.isoformat()
+                'created_at': memory_record.created_at.isoformat() if memory_record.created_at else None
             }
         }
         
@@ -607,8 +609,8 @@ class EnhancedMemoryManager:
         """Convert memory record to dictionary"""
         
         result = asdict(memory)
-        result['created_at'] = memory.created_at.isoformat()
-        result['accessed_at'] = memory.accessed_at.isoformat()
+        result['created_at'] = memory.created_at.isoformat() if memory.created_at else None
+        result['accessed_at'] = memory.accessed_at.isoformat() if memory.accessed_at else None
         return result
     
     async def _get_recent_memories(self, user_id: str, hours: int = 24, days: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
@@ -624,7 +626,7 @@ class EnhancedMemoryManager:
         
         for memory_id in reversed(user_memory_ids):  # Most recent first
             memory = await self._load_memory(memory_id)
-            if memory and memory.created_at >= cutoff:
+            if memory and memory.created_at and memory.created_at >= cutoff:
                 recent_memories.append(self._memory_to_dict(memory))
                 if len(recent_memories) >= limit:
                     break
@@ -738,13 +740,17 @@ class EnhancedMemoryManager:
         agent_id = interaction_data.get('agent_id')
         success = interaction_data.get('success', True)
         if agent_id and success:
+            if profile.preferred_agents is None:
+                profile.preferred_agents = []
             if agent_id not in profile.preferred_agents:
                 profile.preferred_agents.append(agent_id)
         
         # Update communication style
         sentiment = interaction_data.get('sentiment', {})
         if sentiment.get('positive', 0) > 0.5:
-            profile.communication_style['formality'] = max(0, profile.communication_style['formality'] - 0.05)
+            if profile.communication_style is None:
+                profile.communication_style = {'formality': 0.5}
+            profile.communication_style['formality'] = max(0, profile.communication_style.get('formality', 0.5) - 0.05)
         
         # Save updated profile
         await self._save_user_profile(profile)
@@ -812,6 +818,8 @@ class EnhancedMemoryManager:
             # Find patterns in successful interactions
             successful_agents = [m['agent_id'] for m in successful_interactions if m.get('agent_id')]
             for agent in set(successful_agents):
+                if profile.success_patterns is None:
+                    profile.success_patterns = {}
                 if agent not in profile.success_patterns:
                     profile.success_patterns[agent] = 0
                 profile.success_patterns[agent] += successful_agents.count(agent) / len(successful_interactions)
@@ -955,6 +963,8 @@ class EnhancedMemoryManager:
         agent_id = interaction.get('agent_id')
         if agent_id:
             rating = feedback.get('rating', 3)
+            if profile.success_patterns is None:
+                profile.success_patterns = {}
             if agent_id not in profile.success_patterns:
                 profile.success_patterns[agent_id] = 0.5
             

@@ -130,19 +130,19 @@ class ServiceManager:
 # Global service manager instance
 service_manager = ServiceManager()
 
-async def get_mama_bear_agent() -> EnhancedMamaBearAgent:
+async def get_mama_bear_agent() -> Optional[EnhancedMamaBearAgent]:
     """Get the Mama Bear Agent service"""
     return service_manager.get_service('mama_bear')
 
-async def get_memory_manager() -> MemoryManager:
+async def get_memory_manager() -> Optional[MemoryManager]:
     """Get the Memory Manager service"""
     return service_manager.get_service('memory')
 
-async def get_scrapybara_manager() -> ScrapybaraManager:
+async def get_scrapybara_manager() -> Optional[ScrapybaraManager]:
     """Get the Scrapybara Manager service"""
     return service_manager.get_service('scrapybara')
 
-async def get_theme_manager() -> ThemeManager:
+async def get_theme_manager() -> Optional[ThemeManager]:
     """Get the Theme Manager service"""
     return service_manager.get_service('themes')
 
